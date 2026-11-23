@@ -76,6 +76,108 @@ test('header: regular weight only, no synthetic bold', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
+const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+
+test('theme: header bar with logo then title, card on the textured gray page, colours from the theme', async ({ page }) => {
+  const problems = watch(page);
+  const assetResponses = [];
+  page.on('response', (r) => { if (r.url().includes('/img/grain.png')) assetResponses.push(r); });
+  await open(page);
+
+  // texture: served under /legal/assets/ with 200 and used as the page background
+  await expect.poll(() => assetResponses.length).toBeGreaterThan(0);
+  const grain = assetResponses[0];
+  expect(new URL(grain.url()).pathname).toBe('/legal/assets/img/grain.png');
+  expect(grain.status()).toBe(200);
+  expect(grain.headers()['content-type']).toContain('image/png');
+  const body = await page.evaluate(() => { const cs = getComputedStyle(document.body); return { bg: cs.backgroundColor, img: cs.backgroundImage }; });
+  expect(body.bg).toBe(rgb('#7B7B7B'));
+  expect(body.img).toMatch(/\/legal\/assets\/img\/grain\.png/);
+
+  const s = await page.evaluate(() => {
+    const cs = (sel, pseudo) => getComputedStyle(document.querySelector(sel), pseudo || null);
+    const logo = document.querySelector('.banner__logo').getBoundingClientRect();
+    const title = document.querySelector('.banner__title').getBoundingClientRect();
+    const bar = document.querySelector('header.banner').getBoundingClientRect();
+    const card = document.querySelector('.page').getBoundingClientRect();
+    return {
+      header: cs('header.banner').backgroundColor, headerText: cs('.banner__title').color,
+      titleInBar: title.top >= bar.top && title.bottom <= bar.bottom, logoLeftOfTitle: logo.right <= title.left,
+      card: cs('.page').backgroundColor, cardRadius: cs('.page').borderTopLeftRadius, cardShadow: cs('.page').boxShadow,
+      cardLeft: card.left, cardRight: window.innerWidth - card.right, cardWidth: card.width,
+      privilegeBg: cs('.privilege').backgroundColor, privilegeFg: cs('.privilege').color,
+      privilegeBorder: [cs('.privilege').borderLeftWidth, cs('.privilege').borderLeftColor], privilegeWeight: cs('.privilege').fontWeight,
+      label: [cs('label[for="firstName"]').color, cs('label[for="firstName"]').textTransform, cs('label[for="firstName"]').fontWeight],
+      req: cs('label[for="firstName"] .req').color,
+      input: [cs('#firstName').backgroundColor, cs('#firstName').borderTopColor, cs('#firstName').borderTopLeftRadius],
+      section: [cs('#sec-member-title').color, cs('#sec-member-title').fontWeight, cs('#sec-member-title').borderBottomStyle, cs('#sec-member-title').borderBottomColor, cs('#sec-member-title').backgroundColor],
+      button: [cs('#review-btn').backgroundColor, cs('#review-btn').color, cs('#review-btn').borderTopLeftRadius],
+      help: cs('.help') ? cs('.help').color : null,
+    };
+  });
+  expect(s.header).toBe(rgb('#025D8C'));
+  expect(s.headerText).toBe(rgb('#FFFFFF'));
+  expect(s.titleInBar).toBe(true);
+  expect(s.logoLeftOfTitle).toBe(true);
+  expect(s.card).toBe(rgb('#FFFFFF'));
+  expect(s.cardRadius).toBe('0px');
+  expect(s.cardShadow).not.toBe('none');
+  expect(s.privilegeBg).toBe(rgb('#E8F0F6'));
+  expect(s.privilegeFg).toBe(rgb('#023E5E'));
+  expect(s.privilegeBorder).toEqual(['4px', rgb('#025D8C')]);
+  expect(Number(s.privilegeWeight)).toBeGreaterThanOrEqual(700);
+  expect(s.label).toEqual([rgb('#444444'), 'uppercase', '700']);
+  expect(s.req).toBe(rgb('#B42318'));
+  expect(s.input).toEqual([rgb('#FBFBFB'), rgb('#8A8A8A'), '0px']);
+  expect(s.section).toEqual([rgb('#333333'), '700', 'dotted', rgb('#CCCCCC'), 'rgba(0, 0, 0, 0)']);
+  expect(s.button).toEqual([rgb('#336699'), rgb('#FFFFFF'), '0px']);
+  expect(s.help).toBe(rgb('#555555'));
+
+  const vw = page.viewportSize().width;
+  if (vw < 600) {                                                        // phone: full width with small margins
+    expect(s.cardLeft).toBeGreaterThan(0);
+    expect(s.cardLeft).toBeLessThanOrEqual(12);
+    expect(s.cardRight).toBeLessThanOrEqual(12);
+  } else {                                                               // centred card, 640–760px
+    expect(s.cardWidth).toBeGreaterThanOrEqual(640);
+    expect(s.cardWidth).toBeLessThanOrEqual(760);
+    expect(Math.abs(s.cardLeft - s.cardRight)).toBeLessThanOrEqual(1);
+  }
+  expect(problems).toEqual([]);
+});
+
+test('errors stay distinct from the blue brand: red, icon, "Error:" prefix, heavier left border', async ({ page }) => {
+  await open(page);
+  await page.click('#review-btn');
+  await expect(page.locator('#firstName-err')).toBeVisible();
+  const st = await page.evaluate(() => {
+    const err = document.querySelector('#firstName-err');
+    const f = document.querySelector('#firstName').closest('.field');
+    return { color: getComputedStyle(err).color, icon: getComputedStyle(err, '::before').content,
+      border: [getComputedStyle(f).borderLeftWidth, getComputedStyle(f).borderLeftColor],
+      summaryBorder: getComputedStyle(document.querySelector('#form-summary')).borderLeftColor };
+  });
+  expect(st.color).toBe(rgb('#B42318'));
+  expect(st.icon).toContain('⚠');
+  expect(st.border).toEqual(['4px', rgb('#B42318')]);
+  expect(st.summaryBorder).toBe(rgb('#B42318'));
+  await expect(page.locator('#firstName-err .err__prefix')).toHaveText(C.common.errorPrefix);
+  await expect(page.locator('#firstName')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#firstName')).toHaveAttribute('aria-describedby', /firstName-err/);
+});
+
+test('no horizontal scroll, on the form and on a review page with long answers', async ({ page }) => {
+  await open(page);
+  const noScroll = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  expect(await noScroll()).toBe(true);
+  await fillValid(page);
+  await page.fill('#narrative', `Long ${'y'.repeat(200)}`);
+  await page.fill('#jobTitle', 'z'.repeat(100));
+  await page.click('#review-btn');
+  await expect(page.locator('#view-review')).toBeVisible();
+  expect(await noScroll()).toBe(true);
+});
+
 test('review: long answers below the label at full width, line breaks kept; short answers inline', async ({ page }) => {
   const problems = watch(page);
   await open(page);

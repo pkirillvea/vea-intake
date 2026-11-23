@@ -3,25 +3,31 @@
  * Colours come ONLY from the theme block below, so another form (UD Intake) can
  * get its own palette by adding a [data-theme="..."] block, without layout changes.
  * Contrast (WCAG AA) is noted per pair; see docs/PLAN.md section 1 ("Theme").
- * Errors never rely on colour (primary and error are both red): warning icon,
- * "Error:" prefix, heavier left border, aria-invalid/aria-describedby (legal.js).
+ * Errors never rely on colour alone: warning icon, "Error:" prefix, heavier left
+ * border, aria-invalid/aria-describedby (legal.js).
  */
 
 /* ------------------------------------------------------- theme: Legal */
+/* Look of VEA's MachForm forms (VEA-Retired): blue header bar, white card on a
+   textured gray page, uppercase field labels, dotted section rules, square corners. */
 :root,
 [data-theme="legal"] {
-  --primary: #9B1C24;        /* white on it 8.12:1; on surface 8.12:1, on bg 7.57:1, on tint 6.77:1 */
-  --primary-hover: #7A151C;  /* white on it 10.76:1 */
-  --bg: #FAF6F5;
-  --surface: #FFFFFF;
-  --text: #2B1D1E;           /* on surface 16.19:1, bg 15.08:1, tint 13.49:1 */
-  --muted: #5E4A4B;          /* on surface 8.21:1, bg 7.65:1, tint 6.84:1 */
-  --border: #8F7B7C;         /* non-text: 3.97:1 on surface, 3.70:1 on bg */
-  --tint: #F6E7E7;
-  --banner-fg: #6B3A00;      /* on banner-bg 8.27:1 */
-  --banner-bg: #FBEFD9;
-  --error: #B42318;          /* on surface 6.57:1, bg 6.13:1, tint 5.48:1 */
-  --focus: #1D4ED8;          /* 6.70:1 on surface, 6.24:1 on bg; only 1.21:1 on primary: rings sit outside primary controls */
+  --header: #025D8C;         /* header bar: white on it 7.13:1 */
+  --primary: #336699;        /* buttons: white on it 6.00:1; text/links on surface 6.00, input-bg 5.80, banner-bg 5.21 */
+  --primary-hover: #2A5580;  /* white on it 7.75:1; on surface 7.75, input-bg 7.49, banner-bg 6.73 */
+  --page-bg: #7B7B7B;        /* page behind the card (+ img/grain.png). No text on it: white would be 4.23:1 */
+  --surface: #FFFFFF;        /* the form card */
+  --input-bg: #FBFBFB;
+  --border: #8A8A8A;         /* input borders, non-text: 3.45:1 on surface, 3.34:1 on input-bg */
+  --divider: #CCCCCC;        /* dotted section rules, decorative only */
+  --label: #444444;          /* field labels: 9.74:1 on surface, 8.45:1 on banner-bg */
+  --text: #333333;           /* 12.63:1 on surface, 12.21:1 on input-bg, 10.97:1 on banner-bg */
+  --muted: #555555;          /* 7.46:1 on surface, 7.20:1 on input-bg, 6.47:1 on banner-bg */
+  --banner-fg: #023E5E;      /* 9.83:1 on banner-bg */
+  --banner-bg: #E8F0F6;
+  --error: #B42318;          /* 6.57:1 on surface, 6.35:1 on input-bg, 5.71:1 on banner-bg; also the required * */
+  --focus: #B45309;          /* non-text: 5.02:1 on surface, 4.85:1 on input-bg, 4.36:1 on banner-bg;
+                                only 1.19:1 on primary and 1.42:1 on header, so rings sit outside those */
 }
 
 /* ------------------------------------------------------ layout tokens */
@@ -39,7 +45,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--page-bg) url("../img/grain.png") repeat;   /* colour alone if the image fails */
   color: var(--text);
   font: 400 0.9375rem/1.5 var(--font);
 }
@@ -48,7 +54,7 @@ img { max-width: 100%; height: auto; }
 
 [hidden] { display: none !important; }
 
-/* Focus: 3px ring, offset outside the control so it always sits on surface/bg (never on primary). */
+/* Focus: 3px ring, offset outside the control so it sits on the card (never on primary or header). */
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
@@ -66,30 +72,31 @@ img { max-width: 100%; height: auto; }
   position: absolute; left: 0.5rem; top: -3rem;
   z-index: 10;
   padding: 0.5rem 0.75rem;
-  background: var(--surface); color: var(--primary);   /* 8.12:1 */
+  background: var(--surface); color: var(--primary);   /* 6.00:1 */
   font-weight: 700;
 }
 .skip-link:focus { top: 0.5rem; }
+.skip-link:focus-visible { outline-offset: -5px; }   /* ring inside the link (on surface), not on the gray page */
 
+/* The white card. Phones: full width with small margins; from 600px: centred, max 700px. */
 .page {
-  max-width: 42.5rem;   /* 680px, as vea-join */
-  margin: 0 auto;
+  max-width: 43.75rem;   /* 700px */
+  margin: 0.5rem;
   background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);   /* square corners */
 }
 
-main { padding: 0 0.75rem 3rem; }
+main { padding: 0 1rem 2rem; }
 main:focus { outline: none; }
 
 /* -------------------------------------------------------- header bar */
-.banner {   /* white on primary 8.12:1. Regular weight only; no synthetic bold or italic */
-  background: var(--primary); color: #fff;
+.banner {   /* white on header 7.13:1. Regular weight only; no synthetic bold or italic */
+  background: var(--header); color: #fff;
   font-weight: 400; font-synthesis: none;
 }
 .banner__inner {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-  padding: 0.75rem 0.75rem 0.625rem;
+  display: flex; align-items: center; justify-content: flex-start; gap: 0.875rem;   /* logo, then title */
+  padding: 0.75rem 1rem;
 }
 .banner__title {
   margin: 0;
@@ -100,31 +107,32 @@ main:focus { outline: none; }
 /* ------------------------------------------------- privilege banner */
 .privilege {
   margin: 0; padding: 0.5rem 0.75rem;
-  background: var(--banner-bg); color: var(--banner-fg);   /* 8.27:1 */
-  border-bottom: 2px solid var(--banner-fg);
-  font-size: 0.8125rem; font-weight: 800; letter-spacing: 0.03em; text-align: center;
+  background: var(--banner-bg); color: var(--banner-fg);   /* 9.83:1 */
+  border-left: 4px solid var(--header);
+  font-size: 0.8125rem; font-weight: 800; letter-spacing: 0.03em;
 }
 
-.signed-in { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.8125rem; }   /* 8.21:1 */
+.signed-in { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.8125rem; }   /* 7.46:1 */
 
 /* ------------------------------------------------------------ notices */
 .notice {
   margin: 1rem 0; padding: 0.75rem 1rem;
-  border-left: 4px solid var(--primary); background: var(--tint); color: var(--text);   /* 13.49:1 */
+  border-left: 4px solid var(--primary); background: var(--banner-bg); color: var(--text);   /* 10.97:1 */
 }
-.notice--error { border-left: 6px solid var(--error); color: var(--error); font-weight: 600; }   /* 5.48:1 */
+.notice--error { border-left: 6px solid var(--error); color: var(--error); font-weight: 600; }   /* 5.71:1 */
 .notice--error::before { content: "\26A0\FE0E  "; }
 
-/* ----------------------------------------------------- section bars */
-.section { margin: 1.25rem 0 0; }
+/* ------------------------------------------------- section headings */
+.section { margin: 1.5rem 0 0; }
 .section__title,
 .step-bar {
-  margin: 0.5rem 0 0.75rem; padding: 0.375rem 0.625rem;
-  background: var(--primary); color: #fff;   /* 8.12:1 */
+  margin: 0.5rem 0 0.875rem; padding: 0 0 0.375rem;
+  border-bottom: 2px dotted var(--divider);   /* decorative */
+  color: var(--text);   /* 12.63:1 */
   font-size: 1rem; font-weight: 700; line-height: 1.3;
 }
-.step-bar:focus { outline: 3px solid #fff; outline-offset: -5px; }   /* inside the bar: white on primary 8.12:1 */
-.required-note { margin: 1rem 0 0.5rem; color: var(--muted); font-size: 0.8125rem; }
+.step-bar { margin-top: 1.25rem; }
+.required-note { margin: 1rem 0 0.5rem; color: var(--muted); font-size: 0.8125rem; }   /* 7.46:1 */
 
 /* ------------------------------------------------------------ fields */
 fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
@@ -132,10 +140,11 @@ legend { padding: 0; }
 .field { margin: 0 0 var(--field-gap); }
 .label {
   display: block; margin: 0 0 0.25rem;
-  color: var(--text); font-weight: 700; font-size: 0.9375rem;
+  color: var(--label); font-weight: 700; font-size: 0.9375rem;   /* 9.74:1 */
+  text-transform: uppercase; letter-spacing: 0.02em;
 }
-.req { color: var(--primary); font-weight: 700; }   /* plus the "Fields marked * are required" note */
-.opt { color: var(--muted); font-weight: 400; font-size: 0.875rem; }
+.req { color: var(--error); font-weight: 700; }   /* 6.57:1; plus the "Fields marked * are required" note */
+.opt { color: var(--muted); font-weight: 400; font-size: 0.875rem; text-transform: none; letter-spacing: 0; }
 .sublabel, .help, .counter {
   display: block; margin: 0.125rem 0 0;
   color: var(--muted); font-size: 0.8125rem; font-weight: 400;
@@ -150,14 +159,14 @@ textarea {
   display: block; width: 100%;
   min-height: 2.25rem;
   padding: 0.375rem 0.5rem;
-  border: 1px solid var(--border); border-radius: 3px;   /* 3.97:1 */
-  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 0;   /* 3.34:1 on input-bg, 3.45:1 on surface */
+  background: var(--input-bg); color: var(--text);   /* 12.21:1 */
   font: inherit; font-size: 1rem; line-height: 1.25;   /* 16px on phones: no iOS zoom */
 }
 textarea { min-height: 9rem; line-height: 1.45; resize: vertical; }
 select { padding-right: 1.75rem; }
-input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
-input:disabled, select:disabled { background: var(--bg); color: var(--muted); }   /* 7.65:1 */
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }   /* 7.20:1 */
+input:disabled, select:disabled { background: var(--surface); color: var(--muted); border-style: dashed; }   /* 7.46:1 */
 input[type="file"] { display: block; max-width: 100%; font: inherit; }
 input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border: 2px solid var(--error); }
 
@@ -172,7 +181,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 #f-address { margin-bottom: var(--field-gap); }
 
 /* "Other" text fields revealed under a select */
-.reveal { margin: 0.5rem 0 0; padding-left: 0.75rem; border-left: 3px solid var(--tint); }
+.reveal { margin: 0.5rem 0 0; padding-left: 0.75rem; border-left: 3px solid var(--divider); }   /* decorative */
 
 /* ------------------------------------------------------------ errors */
 /* Never colour alone: icon + "Error:" prefix (legal.js) + heavier left border on the field. */
@@ -190,7 +199,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 
 .error-summary {
   margin: 0 0 var(--field-gap); padding: 0.75rem 1rem;
-  border: 2px solid var(--error); border-left-width: 6px; border-radius: 3px;
+  border: 2px solid var(--error); border-left-width: 6px; border-radius: 0;
   background: var(--surface); color: var(--text);
 }
 .error-summary:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -203,7 +212,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 /* ---------------------------------------------------------- narrative */
 .limit-note {
   margin: 0.375rem 0 0; padding: 0.375rem 0.625rem;
-  background: var(--banner-bg); color: var(--banner-fg);   /* 8.27:1 */
+  background: var(--banner-bg); color: var(--banner-fg);   /* 9.83:1 */
   border-left: 4px solid var(--banner-fg);
   font-size: 0.875rem; font-weight: 600;
 }
@@ -214,7 +223,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .files__item {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem;
   margin: 0 0 0.25rem; padding: 0.375rem 0.625rem;
-  background: var(--tint);   /* text 13.49:1, muted 6.84:1, primary 6.77:1 */
+  background: var(--input-bg); border: 1px solid var(--divider);   /* text 12.21:1, muted 7.20:1, primary 5.80:1 */
 }
 .files__name { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; color: var(--text); font-weight: 600; }
 .files__size { color: var(--muted); font-size: 0.8125rem; }
@@ -237,14 +246,14 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
 .btn {
   min-height: 2.75rem; padding: 0.5rem 1.5rem;
-  border: 2px solid var(--primary); border-radius: 3px;
-  background: var(--primary); color: #fff;   /* 8.12:1 */
+  border: 2px solid var(--primary); border-radius: 0;
+  background: var(--primary); color: #fff;   /* 6.00:1 */
   font: inherit; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
   cursor: pointer;
 }
-.btn:hover { background: var(--primary-hover); border-color: var(--primary-hover); }   /* 10.76:1 */
-.btn--secondary { background: var(--surface); color: var(--primary); }   /* 8.12:1 */
-.btn--secondary:hover { background: var(--tint); color: var(--primary-hover); }   /* ≥ 6.77:1 */
+.btn:hover { background: var(--primary-hover); border-color: var(--primary-hover); }   /* 7.75:1 */
+.btn--secondary { background: var(--surface); color: var(--primary); }   /* 6.00:1 */
+.btn--secondary:hover { background: var(--banner-bg); color: var(--primary-hover); }   /* 6.73:1 */
 .btn:disabled { opacity: 0.6; cursor: progress; }
 
 /* ------------------------------------------------------------- review */
@@ -252,17 +261,17 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .review { margin: 0 0 1.5rem; }
 .review__head {
   display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
-  border-bottom: 2px solid var(--primary); margin-bottom: 0.5rem;
+  border-bottom: 2px dotted var(--divider); margin-bottom: 0.5rem;   /* decorative */
 }
-.review__head h3 { margin: 0.25rem 0; color: var(--primary); font-size: 1.0625rem; }   /* 8.12:1 */
+.review__head h3 { margin: 0.25rem 0; color: var(--text); font-size: 1.0625rem; }   /* 12.63:1 */
 .review__list { margin: 0; }
 .review__row {
   display: grid; grid-template-columns: 1fr; gap: 0.125rem;
   padding: 0.5rem 0.625rem;
-  background: var(--tint);
+  background: var(--banner-bg);   /* dt 8.45:1, dd 10.97:1 */
 }
-.review__row:nth-child(even) { background: var(--bg); }
-.review__row dt { margin: 0; color: var(--text); font-size: 0.8125rem; font-weight: 700; }
+.review__row:nth-child(even) { background: var(--surface); }   /* dt 9.74:1, dd 12.63:1 */
+.review__row dt { margin: 0; color: var(--label); font-size: 0.8125rem; font-weight: 700; }
 .review__row dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 /* Long answers (narrative, requested outcome, "Other" text, anything over one line):
    value below the label at full width, line breaks kept, long words wrapped.
@@ -274,7 +283,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .review__files li { margin: 0 0 0.25rem; }
 
 /* ------------------------------------------------------- confirmation */
-.confirmation__ref { font-size: 1.125rem; font-weight: 700; color: var(--primary); }
+.confirmation__ref { font-size: 1.125rem; font-weight: 700; color: var(--primary); }   /* 6.00:1 */
 
 /* ------------------------------------------------------------ honeypot */
 .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
@@ -283,8 +292,9 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .row { display: flex; flex-direction: column; }
 
 @media (min-width: 36rem) {
-  main { padding: 0 1rem 3rem; }
-  .banner__inner { padding: 1rem 1rem 0.75rem; }
+  main { padding: 0 1.5rem 2.5rem; }
+  .banner__inner { padding: 1rem 1.5rem; }
+  .privilege { padding: 0.5rem 1.5rem; }
   .banner__title { font-size: 1.5rem; }
   .banner__logo { width: 8.5rem; }
   .review__row { grid-template-columns: minmax(9rem, 2fr) 3fr; gap: 1rem; }
@@ -294,7 +304,13 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   input[type="text"], input[type="email"], input[type="tel"], input[type="date"], select, textarea { font-size: 0.9375rem; }
   .addr-row { grid-template-columns: 2fr 1.5fr 1fr; }
   .addr-row__city { grid-column: auto; }
-  .page { margin: 1rem auto; border-radius: 3px; overflow: hidden; }
+  .page { margin: 1.5rem auto; }
+}
+
+@media (min-width: 45rem) {   /* 720px: card at its max width */
+  main { padding: 0 2rem 2.5rem; }
+  .banner__inner { padding: 1rem 2rem; }
+  .privilege { padding: 0.5rem 2rem; }
 }
 
 @media (min-width: 40rem) {
