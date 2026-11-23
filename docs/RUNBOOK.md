@@ -72,9 +72,9 @@ swap. Exit 0 = all PASS.
 
 ## Pending root changes
 
-- Drop `data:` and `blob:` from `img-src` in
+- **`sudo bash ~/scripts/phase-csp.sh`** (written in Prompt 3): drop `data:` and `blob:` from `img-src` in
   `/etc/nginx/snippets/vea-intake-headers.conf` (they were only for the signature
-  pad, which Legal dropped). A small reviewed script, `nginx -t` with zero
+  pad, which Legal dropped). Exact-line edit with pinned hashes, `nginx -t` with zero
   warnings, reload.
 - Optional: delete the ignored `FORM_VERSION_LEGAL=` line from
   `/etc/vea-intake/app.env` with `sudoedit` (the form version lives in

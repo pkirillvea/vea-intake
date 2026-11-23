@@ -111,7 +111,7 @@ data: last worksite of every local, and last local. The current data is vea-join
 | `bin/build-site.php --form=legal` | `public/legal/index.html` |
 | `bin/warm-fonts.php` | dompdf font cache in `app/storage/fonts/` (the pool cannot write `app/`) |
 | `bin/check-perms.php` | read-only permission check |
-| `bin/fix-vendor-perms.php` | re-create `vendor/` with the right group (runs after composer) |
+| `bin/fix-vendor-perms.php [vendor or tests/e2e/node_modules]` | re-create `vendor/` (runs after composer) or the e2e `node_modules/` with the right group |
 
 All accept `--root=DIR` (used by the tests) and exit non-zero on any error.
 
@@ -138,3 +138,36 @@ first: some tests check the built `public/` files.
 
 Nothing third-party is shipped to browsers (no signature_pad, no web fonts, no
 Turnstile).
+
+## Front end (Legal form)
+
+- `app/forms/legal/templates/index.html` (page) and `app/forms/legal/assets/js/legal.js`
+  (behaviour) are the sources; the build publishes `public/legal/index.html` and
+  `public/legal/assets/js/legal.js?v=…`. No inline scripts or styles (CSP).
+- **Every visible string is in `app/forms/legal/content.json`**: the template uses
+  `{{t:…}}`, and `legal.js` reads the groups passed through `{{json:…}}` on `#strings`.
+  `tests/LegalFrontEndTest.php` fails if the template or `legal.js` uses a key that
+  does not exist, or if `legal.js` contains visible-looking text literals.
+- State lives in JS memory only (no localStorage, sessionStorage or cookies).
+- The payload and response contract is **`docs/PAYLOAD.md`**.
+- Colours: the Legal theme block at the top of `app/shared-assets/css/app.css`
+  (`[data-theme="legal"]`). Layout rules use only the custom properties.
+
+## End-to-end tests (Playwright)
+
+`tests/e2e/` mirrors vea-join's setup, but runs against a local `php -S` over the
+built `public/` (the live site is behind Cloudflare Access). `router.php` applies the
+real security headers from the nginx snippet, with `img-src 'self'`, so the CSP is
+enforced. `ping.php`/`submit.php` are 404 like nginx today; tests mock them where needed.
+
+```bash
+cd /var/www/vea-intake && composer build
+cd tests/e2e
+umask 027 && npm install                                  # .npmrc: bin-links=false (no symlinks)
+php ../../bin/fix-vendor-perms.php tests/e2e/node_modules  # same group fix as vendor/ (path is relative to the repo root)
+npm test                                                   # desktop 1280 + mobile 390
+```
+
+`fix-vendor-perms.php` takes the tree as an argument (`vendor` or
+`tests/e2e/node_modules`, always relative to the repo root, from any directory):
+`php bin/fix-vendor-perms.php tests/e2e/node_modules`. The e2e tests are excluded from the PHPUnit suite.
