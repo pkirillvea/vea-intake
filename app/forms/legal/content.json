@@ -187,7 +187,8 @@
         "narrativeMaxChars": 3000,
         "requestedOutcomeMaxChars": 1000,
         "dobAgeMin": 16,
-        "dobAgeMax": 100
+        "dobAgeMax": 100,
+        "reviewInlineMaxChars": 40
     },
     "pdf": {
         "title": "VEA Legal Assistance Request",

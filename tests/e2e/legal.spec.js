@@ -61,6 +61,59 @@ test('page: banner, sections in order, signed-in line hidden, state defaults to 
   expect(problems).toEqual([]);
 });
 
+test('header: regular weight only, no synthetic bold', async ({ page }) => {
+  const problems = watch(page);
+  await open(page);
+  await expect(page.locator('.banner__title')).toHaveText(C.page.title);
+  const styles = await page.locator('header.banner').evaluate((h) => [h, ...h.querySelectorAll('*')].map((n) => {
+    const cs = getComputedStyle(n);
+    return { tag: n.tagName, weight: cs.fontWeight, synth: cs.fontSynthesisWeight || cs.fontSynthesis };
+  }));
+  for (const st of styles) {
+    expect(st.weight, `${st.tag} font-weight`).toBe('400');
+    expect(st.synth, `${st.tag} font-synthesis`).toMatch(/^none/);
+  }
+  expect(problems).toEqual([]);
+});
+
+test('review: long answers below the label at full width, line breaks kept; short answers inline', async ({ page }) => {
+  const problems = watch(page);
+  await open(page);
+  await fillValid(page);
+  const longWord = 'x'.repeat(150);                                     // must wrap, not overflow
+  const narrative = `First line of the fake narrative.\nSecond line.\n\nAfter a blank line ${longWord}`;
+  await page.fill('#narrative', narrative);
+  await page.fill('#requestedOutcome', 'Advice');                        // short, but always full width
+  await page.fill('#jobTitle', 'Senior instructional technology resource teacher');   // > reviewInlineMaxChars
+  await page.selectOption('#issueType', C.fields.issueType.otherValue);
+  await page.fill('#issueTypeOther', 'Something else');
+  await page.click('#review-btn');
+  await expect(page.locator('#view-review')).toBeVisible();
+
+  const geom = (label) => page.locator('.review__row').filter({ has: page.locator('dt', { hasText: label }) }).first().evaluate((r) => {
+    const dt = r.querySelector('dt').getBoundingClientRect();
+    const dd = r.querySelector('dd');
+    const b = dd.getBoundingClientRect();
+    const cs = getComputedStyle(r);
+    const inner = r.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return { long: r.classList.contains('review__row--long'), below: b.top >= dt.bottom - 0.5, sameLeft: Math.abs(b.left - dt.left) < 1,
+      fullWidth: Math.abs(b.width - inner) < 1, ws: getComputedStyle(dd).whiteSpace, overflow: dd.scrollWidth > dd.clientWidth + 1, text: dd.innerText };
+  });
+
+  for (const label of [C.fields.narrative.label, C.fields.requestedOutcome.label, C.fields.issueType.label, C.fields.jobTitle.label]) {
+    const g = await geom(label);
+    expect(g, label).toMatchObject({ long: true, below: true, sameLeft: true, fullWidth: true, ws: 'pre-wrap', overflow: false });
+  }
+  const n = await geom(C.fields.narrative.label);
+  expect(n.text).toContain('First line of the fake narrative.\nSecond line.\n\nAfter a blank line');
+
+  const short = await geom(C.fields.membershipNumber.label);
+  expect(short.long).toBe(false);
+  if (page.viewportSize().width >= 576) expect(short).toMatchObject({ below: false, sameLeft: false });   // label | value columns
+  else expect(short).toMatchObject({ below: true, sameLeft: true });                                       // phone: stacked, as before
+  expect(problems).toEqual([]);
+});
+
 test('cascade: local → worksites, change resets, OTHER / NOT LISTED reveals text fields', async ({ page }) => {
   const problems = watch(page);
   await open(page);

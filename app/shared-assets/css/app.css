@@ -83,14 +83,17 @@ main { padding: 0 0.75rem 3rem; }
 main:focus { outline: none; }
 
 /* -------------------------------------------------------- header bar */
-.banner { background: var(--primary); color: #fff; }   /* white on primary 8.12:1 */
+.banner {   /* white on primary 8.12:1. Regular weight only; no synthetic bold or italic */
+  background: var(--primary); color: #fff;
+  font-weight: 400; font-synthesis: none;
+}
 .banner__inner {
   display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
   padding: 0.75rem 0.75rem 0.625rem;
 }
 .banner__title {
   margin: 0;
-  font-size: 1.25rem; line-height: 1.2; font-weight: 800; letter-spacing: -0.01em;
+  font-size: 1.25rem; line-height: 1.2; font-weight: 400; letter-spacing: -0.01em;
 }
 .banner__logo { width: 6.5rem; flex: none; }
 
@@ -261,7 +264,12 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .review__row:nth-child(even) { background: var(--bg); }
 .review__row dt { margin: 0; color: var(--text); font-size: 0.8125rem; font-weight: 700; }
 .review__row dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
-.review__long { white-space: pre-wrap; }
+/* Long answers (narrative, requested outcome, "Other" text, anything over one line):
+   value below the label at full width, line breaks kept, long words wrapped.
+   The PDF uses the same rule (PLAN §11). */
+.review__row--long, .review__row--long dd { display: block; }
+.review__row--long dt { margin-bottom: 0.25rem; }
+.review__row--long dd { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .review__files { margin: 0; padding-left: 1.25rem; }
 .review__files li { margin: 0 0 0.25rem; }
 

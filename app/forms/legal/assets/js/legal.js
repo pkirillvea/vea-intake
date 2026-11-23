@@ -490,11 +490,21 @@
   }
 
   // ---------------------------------------------------------------- review
-  function row(list, label, value) {
+  // A text answer is "long" (shown below its label at full width) when it is one of
+  // the free-text fields, contains a line break, or is longer than
+  // limits.reviewInlineMaxChars. Same rule as the PDF (PLAN §11).
+  const isLongText = (text) => /[\r\n]/.test(text) || text.length > Number(STR.limits.reviewInlineMaxChars);
+
+  function row(list, label, value, alwaysLong) {
     const dd = el('dd');
+    let long = Boolean(alwaysLong);
     if (value instanceof Node || Array.isArray(value)) dd.append(...[].concat(value));
-    else dd.textContent = value === '' || value == null ? STR.review.notProvided : String(value);
-    list.append(el('div', { class: 'review__row' }, [el('dt', { text: label }), dd]));
+    else {
+      const text = value === '' || value == null ? STR.review.notProvided : String(value);
+      dd.textContent = text;
+      long = long || isLongText(text);
+    }
+    list.append(el('div', { class: long ? 'review__row review__row--long' : 'review__row' }, [el('dt', { text: label }), dd]));
   }
 
   const withOther = (value, other) => (other ? `${value}: ${other}` : value);
@@ -518,10 +528,11 @@
 
     const i = $('#review-issue');
     i.textContent = '';
-    row(i, F.issueType.label, withOther(val('issueType'), val('issueType') === OTHER_ISSUE ? val('issueTypeOther') : ''));
+    const issueOther = val('issueType') === OTHER_ISSUE;
+    row(i, F.issueType.label, withOther(val('issueType'), issueOther ? val('issueTypeOther') : ''), issueOther);
     row(i, F.incidentDate.label, Dates.toUs(val('incidentDate')));
-    row(i, F.narrative.label, el('span', { class: 'review__long', text: val('narrative') }));
-    row(i, F.requestedOutcome.label, val('requestedOutcome'));
+    row(i, F.narrative.label, val('narrative'), true);
+    row(i, F.requestedOutcome.label, val('requestedOutcome'), true);
 
     const d = $('#review-documents');
     d.textContent = '';
