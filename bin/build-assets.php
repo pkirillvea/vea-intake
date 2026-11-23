@@ -24,6 +24,7 @@ declare(strict_types=1);
 /** Shared files every form publishes (path under app/shared-assets/). */
 const SHARED = [
     'css/app.css',
+    'img/grain.png',            // page texture, referenced from app.css (bin/make-grain.php)
     'img/vea-logo-white.png',
     'img/icons/favicon-32.png',
     'img/icons/apple-touch-icon.png',

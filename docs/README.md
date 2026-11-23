@@ -111,6 +111,7 @@ data: last worksite of every local, and last local. The current data is vea-join
 | `bin/build-site.php --form=legal` | `public/legal/index.html` |
 | `bin/warm-fonts.php` | dompdf font cache in `app/storage/fonts/` (the pool cannot write `app/`) |
 | `bin/check-perms.php` | read-only permission check |
+| `bin/make-grain.php` | regenerate `app/shared-assets/img/grain.png` (page texture; reproducible, committed) |
 | `bin/fix-vendor-perms.php [vendor or tests/e2e/node_modules]` | re-create `vendor/` (runs after composer) or the e2e `node_modules/` with the right group |
 
 All accept `--root=DIR` (used by the tests) and exit non-zero on any error.
