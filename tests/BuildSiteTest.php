@@ -36,6 +36,29 @@ final class BuildSiteTest extends TestCase
         );
     }
 
+    public function testJsonGroupsAndNumbers(): void
+    {
+        $this->t->json('app/forms/legal/content.json', ['_meta' => ['formVersion' => '9.9'], 'fields' => ['a' => ['maxLength' => 50]], 'messages' => ['x' => 'A "quote" & <tag>']]);
+        $this->t->write('app/forms/legal/templates/index.html', '<input maxlength="{{t:fields.a.maxLength}}"><div data-json="{{json:messages fields}}"></div>');
+        [$code, $out] = $this->t->run('build-site.php', '--form=legal');
+        self::assertSame(0, $code, $out);
+        $html = $this->t->read('public/legal/index.html');
+        self::assertStringContainsString('maxlength="50"', $html);
+        preg_match('/data-json="([^"]*)"/', $html, $m);
+        self::assertSame(
+            ['messages' => ['x' => 'A "quote" & <tag>'], 'fields' => ['a' => ['maxLength' => 50]]],
+            json_decode(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5), true),
+        );
+    }
+
+    public function testJsonUnknownGroupIsAnError(): void
+    {
+        $this->t->write('app/forms/legal/templates/index.html', '{{json:nope}}');
+        [$code, $out] = $this->t->run('build-site.php', '--form=legal');
+        self::assertSame(1, $code);
+        self::assertStringContainsString('no group "nope"', $out);
+    }
+
     public function testUnknownPlaceholderMissingKeyAndUnpublishedAssetAreErrors(): void
     {
         $this->t->write('app/forms/legal/templates/index.html', '{{cfg:TURNSTILE_SITE_KEY}} {{t:page.nope}} {{asset:js/app.js}}');

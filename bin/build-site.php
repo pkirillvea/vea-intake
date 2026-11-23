@@ -5,7 +5,9 @@
  * (docs/PLAN.md section 13). Modelled on vea-join's bin/build-site.php.
  *
  * Placeholders:
- *   {{t:path.to.key}}  content.json string, HTML-escaped
+ *   {{t:path.to.key}}  content.json string (or number, e.g. a maxlength), HTML-escaped
+ *   {{json:g1 g2 ...}} the named top-level content.json groups as JSON, HTML-escaped
+ *                      (for a data- attribute read by the form's JS, as vea-join)
  *   {{asset:path}}     URL from app/data/assets-<form>.json (run build-assets first),
  *                      e.g. /legal/assets/css/app.css?v=<first 12 hex of SHA-256>
  *   {{dataurl}}        /<form>/data/form-data.json?v=<form-data version> (run build-data first)
@@ -75,11 +77,29 @@ $html = preg_replace_callback('/\{\{([^{}]*)\}\}/', static function (array $m) u
         foreach (explode('.', substr($ph, 2)) as $k) {
             $value = is_array($value) && array_key_exists($k, $value) ? $value[$k] : null;
         }
+        if (is_int($value) || is_float($value)) {
+            return h((string) $value);
+        }
         if (!is_string($value)) {
             $errors[] = "{{{$ph}}}: no such string in content.json";
             return '';
         }
         return h($value);
+    }
+    if (str_starts_with($ph, 'json:')) {
+        $groups = preg_split('/\s+/', trim(substr($ph, 5)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $out = [];
+        foreach ($groups as $g) {
+            if (!is_array($content[$g] ?? null)) {
+                $errors[] = "{{{$ph}}}: no group \"$g\" in content.json";
+                continue;
+            }
+            $out[$g] = $content[$g];
+        }
+        if ($groups === []) {
+            $errors[] = "{{{$ph}}}: no groups named";
+        }
+        return h(json_encode($out, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
     }
     if (str_starts_with($ph, 'asset:')) {
         $path = substr($ph, 6);
