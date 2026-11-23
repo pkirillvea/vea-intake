@@ -1,0 +1,70 @@
+{
+    "name": "vea/vea-intake",
+    "description": "VEA intake forms (intake.veanea.net): Legal Assistance Request",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.3",
+        "ext-curl": "*",
+        "ext-fileinfo": "*",
+        "ext-gd": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-zip": "*",
+        "dompdf/dompdf": "^3.1",
+        "firebase/php-jwt": "^7.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "VeaIntake\\Core\\": "app/core/src/",
+            "VeaIntake\\Forms\\Legal\\": "app/forms/legal/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "VeaIntake\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.6"
+        },
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "php bin/fix-vendor-perms.php",
+            "php bin/check-perms.php"
+        ],
+        "post-update-cmd": [
+            "php bin/fix-vendor-perms.php",
+            "php bin/check-perms.php"
+        ],
+        "check-perms": "php bin/check-perms.php",
+        "fix-vendor-perms": "php bin/fix-vendor-perms.php",
+        "import-data": "php bin/import-vea-join-data.php",
+        "build-data": "php bin/build-data.php",
+        "build-assets": "php bin/build-assets.php --form=legal",
+        "build-site": "php bin/build-site.php --form=legal",
+        "warm-fonts": "php bin/warm-fonts.php",
+        "build": [
+            "@build-data",
+            "@build-assets",
+            "@build-site",
+            "@warm-fonts",
+            "@check-perms"
+        ],
+        "test": "phpunit"
+    },
+    "scripts-descriptions": {
+        "fix-vendor-perms": "Re-create vendor/ by copying so it inherits group vea-intake and setgid (composer unzip clears setgid)",
+        "check-perms": "Read-only: report paths with 'other' access, group write, wrong group or non-setgid dirs",
+        "import-data": "Copy locals/worksites from vea-join's source data (read-only) into app/data/source/",
+        "build": "Regenerate form-data.json, assets, the form page and the dompdf font cache; then check permissions"
+    }
+}

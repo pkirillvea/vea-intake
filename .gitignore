@@ -7,6 +7,7 @@ composer.phar
 /public/legal/assets/
 /public/legal/data/
 /app/data/form-data.json
+/app/data/assets-*.json
 /app/storage/fonts/
 /.phpunit.cache/
 .phpunit.result.cache
@@ -32,3 +33,6 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Temporary trees of bin/fix-vendor-perms.php (only left behind if it crashed)
+/.vendor-*/
