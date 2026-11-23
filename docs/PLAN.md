@@ -2,10 +2,11 @@
 
 **Project:** VEA Intake (Legal Assistance Request now; UD Intake later)
 **Owner:** Paul (Director of Technology & Data, VEA)
-**Version:** 1.4, Nov 23 2026
-**Status:** Prompt 1 done (DO2 server work + `verify-do2.sh`). Prompt 2 (scaffold, shared core, assets, data pipeline) in progress. Open items in §14.
+**Version:** 1.5, Nov 23 2026
+**Status:** Prompts 1–2 done. Prompt 3 (front end) in progress. Open items in §14.
 
 **Change log**
+- **1.5** (2026-11-23, Prompt 3 decisions): **Legal theme** (colour custom properties in a theme block in `app/shared-assets/css/app.css`, fonts and sizes as vea-join; errors never by colour alone); **privilege banner text** final: "PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL"; **submitter handle** = email local part, lowercased, with an override map in `content.json` (`{"choward1": "choward"}`); payload contract in `docs/PAYLOAD.md`; date-of-birth plausible range 16–100 (assumption, change in `content.json` `limits`); CSP `img-src 'self'` root script `~/scripts/phase-csp.sh`.
 - **1.4** (2026-11-23, Prompt 2 decisions): **no signature** (Legal dropped it: no field, no SignatureImage, no signature_pad, no script font, no signature method in the audit, CSP without `data:`/`blob:`); git repo `pkirillvea/vea-intake` (deploy key + SSH alias, like vea-join); namespaces `VeaIntake\Core\` and `VeaIntake\Forms\Legal\`; full core class list; data sources `locals.json` + `worksites.json` produced by `bin/import-vea-join-data.php`; "OTHER / NOT LISTED" stored in the data; form version in `content.json` (removed from `app.env`); `bin/build-assets.php` + `bin/build-site.php --form=legal` (`?v=` SHA-256 cache busting); Composer with dev dependencies under `umask 027`, `bin/check-perms.php`; `.gitignore`. This file in the repo is the source of truth.
 - **1.3** (2026-11-23): Phase C/C2 done: tmpfs Wants/After + nofail, per-form assets, host-wide Access app, zero nginx warnings, pdjoin on Origin CA + AOP.
 - **1.2** (2026-11-23): repo root renamed to `/var/www/vea-intake`.
@@ -34,9 +35,10 @@
 | Repo | Git repo `pkirillvea/vea-intake` (private), remote `git@github-vea-intake:pkirillvea/vea-intake.git` via the SSH alias `github-vea-intake` and deploy key `~/.ssh/vea-intake_deploy` (same pattern as vea-join). Shared `app/core/` (copied from vea-join, then generalized; namespace `VeaIntake\Core\`) + one folder per form (`app/forms/legal/`, namespace `VeaIntake\Forms\Legal\`). Shared front-end assets live once in `app/shared-assets/`; `bin/build-assets.php` copies them into each form's `public/<form>/assets/`. |
 | Mail transport | Microsoft Graph as `no.reply@veanea.org`, using a **new** app registration (`VEA Intake Mailer`) with its own secret, scoped to that one mailbox through Exchange RBAC for Applications. |
 | Staff email | To `VEALegal@veanea.org`. PDF + original uploaded files attached. |
-| Subject | `Legal Assistance Request - [#<ID>] - <submitter handle>` where the handle is first initial + last name (e.g. `jsmith`), from the signed-in identity. May change later. |
+| Subject | `Legal Assistance Request - [#<ID>] - <submitter handle>`. **Handle** = the local part of the signed-in Access email, lowercased (e.g. `jsmith@veanea.org` → `jsmith`), then looked up in an explicit **override map** in the repo, `app/forms/legal/content.json` → `handles.overrides` (currently `{"choward1": "choward"}`). Not in `app.env`. |
 | Submitter confirmation | Short confirmation email to the signed-in UD/Legal staffer. **No PDF, no attachments.** Nothing is sent to the member. |
-| Privilege marking | PDF header/footer and email body carry a "Privileged & Confidential / Attorney-Client Communication" banner (wording to confirm with Legal). |
+| Privilege marking | Exact text: **PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL** (`content.json` `banner.privilege`). Shown at the top of the form and the review page, and in the PDF header/footer and the staff email body (Prompt 4). |
+| Theme (Legal) | Fonts and sizes as vea-join. Colours are CSS custom properties in a **Legal theme block** (`html[data-theme="legal"]`) in `app/shared-assets/css/app.css`, so UD Intake can get its own palette without layout changes: `--primary #9B1C24`, `--primary-hover #7A151C`, `--bg #FAF6F5`, `--surface #FFFFFF`, `--text #2B1D1E`, `--muted #5E4A4B`, `--border #8F7B7C`, `--tint #F6E7E7`, `--banner-fg #6B3A00`, `--banner-bg #FBEFD9`, `--error #B42318`, `--focus #1D4ED8`. All text pairs meet WCAG AA. Primary and error are both red, so **errors never rely on colour**: warning icon + "Error:" prefix + heavier left border, `aria-invalid` and `aria-describedby` on the field. The focus colour is only 1.2:1 against `--primary`, so focus rings on primary-filled controls sit outside the control (offset), against `--bg`/`--surface`. |
 | Uploads | Max 5 files; **10 MB per file, 25 MB total**. Allowed: docx, xlsx, csv, pdf, png, jpg/jpeg, txt. No ClamAV for now; Exchange Online Protection scans on arrival at VEALegal. |
 | Signature | **None.** Legal dropped the signature (2026-11-23): no signature field, no SignatureImage class, no signature_pad, no script font, no signature method in the audit block. "Submitted by" comes from the Access identity. |
 | Bot defense | Access gate + nginx rate limit + honeypot. **No Turnstile.** |
@@ -153,7 +155,7 @@ Not carried over from vea-join: SignatureImage (no signature), Turnstile, DuesCa
 - **DO Cloud Firewall `do2-firewall`** (applied to DO2 by droplet, no tags): 22 from Paul's two IPs; 80/443 from Cloudflare ranges only, maintained by cf-ip-sync. ufw also active (allows 22/80/443).
 - **Access JWT verification (app)**: fetch `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs` (cached ≤1 h), verify RS256 signature, `aud` = app AUD tag, `iss` = team domain, `exp`/`nbf`. Reject with 401 if missing or invalid. AOP's global cert proves "came through Cloudflare", not "your Access app", so the JWT is the real gate.
 - **Real client IP**: `/etc/nginx/conf.d/cloudflare-realip.conf` (generated by cf-ip-sync): 22 `set_real_ip_from` ranges + `real_ip_header CF-Connecting-IP`. Verified: forged header from non-Cloudflare peers is ignored.
-- **Headers** (`/etc/nginx/snippets/vea-intake-headers.conf`, re-included in every location that sets its own headers): CSP `default-src 'self'; script-src 'self'; img-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'`, HSTS, nosniff, `Referrer-Policy: no-referrer`, Permissions-Policy (camera/mic/geolocation off), COOP same-origin. **Pending:** the live snippet still allows `img-src 'self' data: blob:` (needed only by the dropped signature pad); a small root script removes them (§15).
+- **Headers** (`/etc/nginx/snippets/vea-intake-headers.conf`, re-included in every location that sets its own headers): CSP `default-src 'self'; script-src 'self'; img-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'`, HSTS, nosniff, `Referrer-Policy: no-referrer`, Permissions-Policy (camera/mic/geolocation off), COOP same-origin. **Pending:** the live snippet still allows `img-src 'self' data: blob:` (needed only by the dropped signature pad); `~/scripts/phase-csp.sh` (Prompt 3, reviewed and run by Paul) removes them (§15).
 - **nginx** (`/etc/nginx/sites-available/intake.veanea.net`):
   - All 443 listen lines on DO2 are `listen 443 ssl http2;` / `listen [::]:443 ssl http2;` (`00-catchall` adds `default_server`). nginx 1.24 has no `http2 on`. **`nginx -t` must show zero warnings**; mismatched listen options cause "protocol options redefined".
   - `00-catchall` (444 on 80, `ssl_reject_handshake` on 443) refuses unknown Host/SNI.
@@ -267,7 +269,7 @@ Header: VEA logo, **VEA Legal Assistance Request Form**, privilege banner, "Sign
 | Current job title | text | ✔ | max 100 |
 | How long in current position | text | ✔ | max 50 |
 | Type of issue | select (list below) + "Other" → required text | ✔ | |
-| Date of Birth | `input type=date` | | Optional. PDF shows "Not provided" if blank. |
+| Date of Birth | `input type=date` | | Optional. Plausible range: age 16–100 on today's date (ET); assumption, set in `content.json` `limits`. PDF shows "Not provided" if blank. |
 | Brief narrative of the problem | textarea, live word counter | ✔ | ≤ 300 words |
 | Date of incident | `input type=date` | ✔ | Not in the future |
 | What do you want VEA to do for you? | text (single line) | ✔ | Server cap 1,000 chars (no visible limit) |
@@ -275,6 +277,8 @@ Header: VEA logo, **VEA Legal Assistance Request Form**, privilege banner, "Sign
 | Honeypot | hidden | | |
 
 **Issue types:** Disability Retirement · Dismissal · Child Protective Services Allegations · Criminal Allegations · Reasonable Accommodations under the Americans with Disabilities Act · Salary/Pay · Collective Bargaining Agreement Issues · Working Conditions · Leave (including those related to the Family and Medical Leave Act) · Other
+
+**Payload:** key names, types, limits, the multipart layout and every response shape are in **`docs/PAYLOAD.md`** (the contract Prompt 4 implements). "OTHER / NOT LISTED" for local or worksite and "Other" for the issue type each reveal a required text field (`localOther`, `worksiteOther`, `issueTypeOther`). State lives in JS memory only.
 
 **Flow:** Form → Review (all answers + file list, Edit links) → Submit. Before submitting, `GET /legal/ping.php` (`redirect: 'manual'`). If the Access session has expired, show: "Your sign-in has expired. [Sign in again] (opens a new tab), then come back here and click Submit." No data is lost. After success: confirmation screen with the reference ID; state cleared.
 
@@ -315,8 +319,9 @@ Graph `sendMail` caps the whole request at about 4 MB, so:
 ## 14. Open items (Paul)
 
 - [x] ~~Whose signature~~: **closed 2026-11-23**, Legal dropped the signature.
-- [ ] **Privilege banner wording** (Legal). Placeholder until then.
-- [ ] **Submitter handle**: is every UD/Legal staff email `firstinitiallast@veanea.org`? If so, use the email local part; otherwise build it from the name claim.
+- [x] ~~Privilege banner wording~~: **closed 2026-11-23**, "PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL".
+- [x] ~~Submitter handle~~: **closed 2026-11-23**, email local part, lowercased, with an override map in `content.json` (`choward1` → `choward`).
+- [ ] Confirm the date-of-birth plausible range (assumed age 16–100).
 - [ ] **Graph app `VEA Intake Mailer`** + RBAC (§8). Needed before Prompt 4.
 - [ ] Confirm no.reply has no litigation hold (§12).
 - [ ] Confirm the Cloudflare **visitor location headers** managed transform is on, and Bot Fight Mode isn't blocking uptime checks.
@@ -338,9 +343,9 @@ Graph `sendMail` caps the whole request at about 4 MB, so:
 | 1C-fix | Correct tmpfs dependency check; catch-all listen lines → zero nginx warnings | ✅ 2026-11-23 |
 | 1C2 | pdjoin: Origin CA cert + AOP + body buffer 1m + listen lines; rollback script | ✅ 2026-11-23 |
 | 1D | `~/scripts/verify-do2.sh` (read-only, reusable) | Written; run with sudo after any change |
-| 2 | Scaffold + shared core (from vea-join) + shared assets + data pipeline; git repo | In progress |
-| — | Root script: drop `data:`/`blob:` from `img-src` in `vea-intake-headers.conf` | Pending |
-| 3 | Front end: the form, cascades, word counter, uploads with progress, review, session-expiry handling | |
+| 2 | Scaffold + shared core (from vea-join) + shared assets + data pipeline; git repo | ✅ 2026-11-23 |
+| — | Root script `~/scripts/phase-csp.sh`: drop `data:`/`blob:` from `img-src` in `vea-intake-headers.conf` | Written (Prompt 3); Paul runs |
+| 3 | Front end: the form, Legal theme, cascades, word counter, uploads with progress, review, session-expiry handling; `docs/PAYLOAD.md`; e2e | In progress |
 | 4 | Back end: TmpfsGuard, Access JWT, validation, upload checks, PDF, Graph send paths, confirmation | Needs §8 |
 | 5 | Verification and go-live | |
 
