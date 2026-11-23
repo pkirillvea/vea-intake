@@ -1,0 +1,89 @@
+{
+    "_meta": {
+        "form": "legal",
+        "formVersion": "2026.11-1",
+        "source": "docs/PLAN.md section 10 (v1.4)",
+        "notes": "Texts marked \"TBD — Legal\" are placeholders until VEA Legal confirms the wording (PLAN section 14). formVersion is the single source of the form version (PLAN 1.4; not in app.env). Bump it whenever fields or validation rules change."
+    },
+    "page": {
+        "title": "VEA Legal Assistance Request Form",
+        "lang": "en",
+        "logoAlt": "Virginia Education Association",
+        "skipLink": "Skip to the form",
+        "placeholder": "VEA Legal Assistance Request – coming soon",
+        "signedInAs": "Signed in as {name} ({email})"
+    },
+    "banner": {
+        "privilege": "TBD — Legal: Privileged & Confidential / Attorney-Client Communication"
+    },
+    "fields": {
+        "firstName": { "label": "First name", "maxLength": 50 },
+        "lastName": { "label": "Last name", "maxLength": 50 },
+        "membershipNumber": {
+            "label": "Membership Number",
+            "help": "Enter all 10 digits, including leading zeros (e.g., 0001234567).",
+            "maxLength": 10
+        },
+        "street": { "label": "Street address" },
+        "city": { "label": "City" },
+        "state": { "label": "State", "default": "Virginia" },
+        "zip": { "label": "ZIP code" },
+        "phone": { "label": "Personal Phone", "placeholder": "(804) 555-1234" },
+        "email": { "label": "Personal Email" },
+        "local": {
+            "label": "Name of Local Union",
+            "otherLabel": "Name of the local (not listed)",
+            "help": "Changing the local resets the worksite."
+        },
+        "worksite": {
+            "label": "Work Location/Worksite",
+            "otherLabel": "Work location (not listed)"
+        },
+        "jobTitle": { "label": "Current job title", "maxLength": 100 },
+        "timeInPosition": { "label": "How long in current position", "maxLength": 50 },
+        "issueType": {
+            "label": "Type of issue",
+            "otherLabel": "Describe the type of issue"
+        },
+        "dateOfBirth": {
+            "label": "Date of Birth",
+            "help": "Optional.",
+            "notProvided": "Not provided"
+        },
+        "narrative": {
+            "label": "Brief narrative of the problem",
+            "help": "{max} words maximum.",
+            "counter": "{count} of {max} words"
+        },
+        "incidentDate": {
+            "label": "Date of incident",
+            "help": "Cannot be in the future."
+        },
+        "requestedOutcome": {
+            "label": "What do you want VEA to do for you?",
+            "maxLength": 1000
+        },
+        "documents": {
+            "label": "Documentation",
+            "help": "Optional. Up to 5 files, 10 MB each, 25 MB in total. Allowed: Word (.docx), Excel (.xlsx), CSV, PDF, PNG, JPG and text (.txt) files."
+        }
+    },
+    "issueTypes": [
+        "Disability Retirement",
+        "Dismissal",
+        "Child Protective Services Allegations",
+        "Criminal Allegations",
+        "Reasonable Accommodations under the Americans with Disabilities Act",
+        "Salary/Pay",
+        "Collective Bargaining Agreement Issues",
+        "Working Conditions",
+        "Leave (including those related to the Family and Medical Leave Act)",
+        "Other"
+    ],
+    "pdf": {
+        "title": "VEA Legal Assistance Request",
+        "banner": "TBD — Legal: Privileged & Confidential / Attorney-Client Communication",
+        "page": "Page {page} of {pages}",
+        "filenamePrefix": "Legal-Request"
+    }
+}
