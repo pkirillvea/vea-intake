@@ -2,19 +2,27 @@
     "_meta": {
         "form": "legal",
         "formVersion": "2026.11-1",
-        "source": "docs/PLAN.md section 10 (v1.4)",
-        "notes": "Texts marked \"TBD — Legal\" are placeholders until VEA Legal confirms the wording (PLAN section 14). formVersion is the single source of the form version (PLAN 1.4; not in app.env). Bump it whenever fields or validation rules change."
+        "source": "docs/PLAN.md sections 1, 10, 11 (v1.5)",
+        "notes": "Every visible string of the Legal form lives here (template via bin/build-site.php, legal.js via the #strings data attribute). formVersion is the single source of the form version (not in app.env): bump it whenever fields or validation rules change. limits are mirrored by legal.js; the server re-checks them (Prompt 4)."
     },
     "page": {
         "title": "VEA Legal Assistance Request Form",
         "lang": "en",
         "logoAlt": "Virginia Education Association",
         "skipLink": "Skip to the form",
-        "placeholder": "VEA Legal Assistance Request – coming soon",
+        "noscript": "This form needs JavaScript. Turn it on in your browser and reload the page.",
+        "loading": "Loading the form…",
+        "requiredNote": "Fields marked * are required.",
         "signedInAs": "Signed in as {name} ({email})"
     },
     "banner": {
-        "privilege": "TBD — Legal: Privileged & Confidential / Attorney-Client Communication"
+        "privilege": "PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL"
+    },
+    "sections": {
+        "member": "Member Information",
+        "employment": "Employment",
+        "issue": "Issue",
+        "documents": "Attached Documents"
     },
     "fields": {
         "firstName": { "label": "First name", "maxLength": 50 },
@@ -24,10 +32,11 @@
             "help": "Enter all 10 digits, including leading zeros (e.g., 0001234567).",
             "maxLength": 10
         },
-        "street": { "label": "Street address" },
-        "city": { "label": "City" },
+        "address": { "label": "Address" },
+        "street": { "label": "Street address", "maxLength": 100 },
+        "city": { "label": "City", "maxLength": 50 },
         "state": { "label": "State", "default": "Virginia" },
-        "zip": { "label": "ZIP code" },
+        "zip": { "label": "ZIP code", "help": "5 digits, or ZIP+4." },
         "phone": { "label": "Personal Phone", "placeholder": "(804) 555-1234" },
         "email": { "label": "Personal Email" },
         "local": {
@@ -37,17 +46,19 @@
         },
         "worksite": {
             "label": "Work Location/Worksite",
-            "otherLabel": "Work location (not listed)"
+            "otherLabel": "Work location (not listed)",
+            "chooseLocalFirst": "Choose the local first."
         },
         "jobTitle": { "label": "Current job title", "maxLength": 100 },
         "timeInPosition": { "label": "How long in current position", "maxLength": 50 },
         "issueType": {
             "label": "Type of issue",
-            "otherLabel": "Describe the type of issue"
+            "otherValue": "Other",
+            "otherLabel": "Describe the type of issue",
+            "otherMaxLength": 100
         },
         "dateOfBirth": {
             "label": "Date of Birth",
-            "help": "Optional.",
             "notProvided": "Not provided"
         },
         "narrative": {
@@ -65,7 +76,7 @@
         },
         "documents": {
             "label": "Documentation",
-            "help": "Optional. Up to 5 files, 10 MB each, 25 MB in total. Allowed: Word (.docx), Excel (.xlsx), CSV, PDF, PNG, JPG and text (.txt) files."
+            "help": "Up to 5 files, 10 MB each, 25 MB in total. Allowed: Word (.docx), Excel (.xlsx), CSV, PDF, PNG, JPG and text (.txt) files."
         }
     },
     "issueTypes": [
@@ -80,9 +91,107 @@
         "Leave (including those related to the Family and Medical Leave Act)",
         "Other"
     ],
+    "common": {
+        "optional": "(optional)",
+        "select": "Select…",
+        "errorPrefix": "Error:",
+        "errorSummary": "Please correct the following:",
+        "errorSeparator": ": "
+    },
+    "messages": {
+        "required": "This field is required.",
+        "choose": "Please make a selection.",
+        "maxLength": "Use at most {max} characters.",
+        "email": "Enter a valid email address.",
+        "phone": "Enter a 10-digit US phone number.",
+        "zip": "Enter a 5-digit ZIP code or ZIP+4.",
+        "membershipNumber": "Enter exactly 10 digits.",
+        "dateInvalid": "Enter a valid date.",
+        "dobFuture": "The date of birth cannot be in the future.",
+        "dobRange": "Check the date of birth: the age must be between {min} and {max}.",
+        "incidentFuture": "The date of incident cannot be in the future.",
+        "otherRequired": "Describe it in the text box.",
+        "narrativeLimit": "The narrative is limited to {max} words. Shorten it to add more.",
+        "narrativePaste": "That text would make the narrative longer than {max} words, so it was not added.",
+        "loadError": "The form could not be loaded. Reload the page, or try again later.",
+        "notEnabled": "Submission is not enabled yet (test build). Your answers are kept.",
+        "sessionExpired": "Your sign-in has expired.",
+        "signInAgain": "Sign in again",
+        "sessionExpiredAfter": "(opens a new tab), then come back here and click Submit.",
+        "submitNetwork": "The request could not be sent. Check your connection and try again. Your answers are kept.",
+        "submitFailed": "Something went wrong and the request was not sent. Your answers are kept; please try again.",
+        "submitBusy": "Too many attempts. Wait a minute, then try again. Your answers are kept.",
+        "submitInvalid": "Please correct: {fields}",
+        "submitStale": "This page is out of date. Copy anything you need, then reload the page.",
+        "submitTooLarge": "The request is too large to send (at most 25 MB of files in total).",
+        "submitUnavailable": "Submissions are temporarily unavailable. Your answers are kept; please try again later.",
+        "serverRejected": "This value was not accepted. Check it, then submit again."
+    },
+    "uploads": {
+        "choose": "Add files",
+        "listLabel": "Attached files",
+        "remove": "Remove",
+        "removeLabel": "Remove {name}",
+        "summary": "{count} of {max} files, {total} of {maxTotal} MB",
+        "sizeKb": "{n} KB",
+        "sizeMb": "{n} MB",
+        "added": "{name} attached.",
+        "removed": "{name} removed.",
+        "tooMany": "{name} was not added: at most {max} files.",
+        "tooBig": "{name} was not added: it is larger than {max} MB.",
+        "totalTooBig": "{name} was not added: the files would be larger than {max} MB in total.",
+        "badType": "{name} was not added: this file type is not allowed.",
+        "empty": "{name} was not added: the file is empty.",
+        "duplicate": "{name} was not added: it is already attached.",
+        "limitCount": "Attach at most {max} files.",
+        "limitTotal": "The files must be at most {max} MB in total."
+    },
+    "review": {
+        "title": "Review your request",
+        "intro": "Check every answer. Use Edit to change a section, then submit.",
+        "notProvided": "Not provided",
+        "noFiles": "No files attached"
+    },
+    "buttons": {
+        "review": "Review request",
+        "edit": "Edit",
+        "submit": "Submit request",
+        "submitting": "Submitting…",
+        "back": "Back to the form",
+        "newRequest": "Start a new request"
+    },
+    "progress": {
+        "label": "Upload progress",
+        "uploading": "Uploading… {percent}%"
+    },
+    "confirmation": {
+        "title": "Request received",
+        "body": "Your Legal Assistance Request was sent to VEA Legal. Keep the reference number for your records.",
+        "reference": "Reference #{id}"
+    },
+    "honeypot": {
+        "label": "Leave this field empty"
+    },
+    "handles": {
+        "_note": "Submitter handle for the staff email subject (Prompt 4): the local part of the signed-in email, lowercased, then this override map.",
+        "overrides": {
+            "choward1": "choward"
+        }
+    },
+    "limits": {
+        "maxFiles": 5,
+        "maxFileMb": 10,
+        "maxTotalMb": 25,
+        "extensions": ["docx", "xlsx", "csv", "pdf", "png", "jpg", "jpeg", "txt"],
+        "narrativeMaxWords": 300,
+        "narrativeMaxChars": 3000,
+        "requestedOutcomeMaxChars": 1000,
+        "dobAgeMin": 16,
+        "dobAgeMax": 100
+    },
     "pdf": {
         "title": "VEA Legal Assistance Request",
-        "banner": "TBD — Legal: Privileged & Confidential / Attorney-Client Communication",
+        "banner": "PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL",
         "page": "Page {page} of {pages}",
         "filenamePrefix": "Legal-Request"
     }

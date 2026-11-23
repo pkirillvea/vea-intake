@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{t:page.lang}}" data-theme="legal">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,21 +9,276 @@
 <link rel="icon" type="image/png" sizes="32x32" href="{{asset:img/icons/favicon-32.png}}">
 <link rel="apple-touch-icon" href="{{asset:img/icons/apple-touch-icon.png}}">
 <link rel="stylesheet" href="{{asset:css/app.css}}">
+<script src="{{asset:js/legal.js}}" defer></script>
 </head>
-<body>
-<!-- Placeholder until Prompt 3 (the form). Built by bin/build-site.php --form=legal; do not edit public/legal/index.html. -->
+<body data-form-version="{{t:_meta.formVersion}}" data-form-data="{{dataurl}}" data-ping-url="/legal/ping.php" data-submit-url="/legal/submit.php">
+<!-- Built by bin/build-site.php --form=legal from app/forms/legal/templates/index.html; do not edit public/legal/index.html.
+     Every visible string comes from app/forms/legal/content.json. Field ids are the payload keys (docs/PAYLOAD.md). -->
+<a class="skip-link" href="#main">{{t:page.skipLink}}</a>
+
 <div class="page">
 <header class="banner">
   <div class="banner__inner">
+    <h1 class="banner__title">{{t:page.title}}</h1>
     <img class="banner__logo" src="{{asset:img/vea-logo-white.png}}" alt="{{t:page.logoAlt}}" width="210" height="60">
   </div>
-  <div class="banner__stripe" aria-hidden="true"></div>
 </header>
+<p class="privilege" role="note">{{t:banner.privilege}}</p>
+
 <main id="main" tabindex="-1">
-  <h1>{{t:page.title}}</h1>
-  <p>{{t:page.placeholder}}</p>
-  <p><a href="{{dataurl}}">form-data.json</a></p>
+  <p class="signed-in" id="signed-in" hidden></p>
+
+  <noscript><p class="notice notice--error">{{t:page.noscript}}</p></noscript>
+  <p class="notice" id="loading" role="status">{{t:page.loading}}</p>
+  <p class="notice notice--error" id="load-error" role="alert" hidden>{{t:messages.loadError}}</p>
+
+  <form id="legal-form" novalidate hidden autocomplete="on">
+
+    <!-- Honeypot: humans never see or reach this field -->
+    <div class="hp" aria-hidden="true">
+      <label for="website">{{t:honeypot.label}}</label>
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+    </div>
+
+    <!-- ================================ FORM ================================ -->
+    <section class="view" id="view-form" aria-labelledby="form-title">
+      <h2 class="visually-hidden" id="form-title" tabindex="-1">{{t:page.title}}</h2>
+      <p class="required-note">{{t:page.requiredNote}}</p>
+      <div class="error-summary" id="form-summary" role="alert" tabindex="-1" hidden></div>
+
+      <!-- ---------------------------- Member Information ---------------------------- -->
+      <section class="section" id="sec-member" aria-labelledby="sec-member-title">
+        <h2 class="section__title" id="sec-member-title">{{t:sections.member}}</h2>
+
+        <div class="row">
+          <div class="field col" id="f-firstName">
+            <label class="label" for="firstName">{{t:fields.firstName.label}} <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="firstName" name="firstName" maxlength="{{t:fields.firstName.maxLength}}" required autocomplete="given-name" aria-describedby="firstName-err">
+            <p class="err" id="firstName-err" hidden></p>
+          </div>
+          <div class="field col" id="f-lastName">
+            <label class="label" for="lastName">{{t:fields.lastName.label}} <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="lastName" name="lastName" maxlength="{{t:fields.lastName.maxLength}}" required autocomplete="family-name" aria-describedby="lastName-err">
+            <p class="err" id="lastName-err" hidden></p>
+          </div>
+        </div>
+
+        <div class="field" id="f-membershipNumber">
+          <label class="label" for="membershipNumber">{{t:fields.membershipNumber.label}} <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="membershipNumber" name="membershipNumber" class="input--medium" inputmode="numeric" maxlength="{{t:fields.membershipNumber.maxLength}}" required autocomplete="off" spellcheck="false" aria-describedby="membershipNumber-help membershipNumber-err">
+          <p class="help" id="membershipNumber-help">{{t:fields.membershipNumber.help}}</p>
+          <p class="err" id="membershipNumber-err" hidden></p>
+        </div>
+
+        <fieldset class="field" id="f-address">
+          <legend class="label">{{t:fields.address.label}} <span class="req" aria-hidden="true">*</span></legend>
+          <div class="part">
+            <input type="text" id="street" name="street" maxlength="{{t:fields.street.maxLength}}" required autocomplete="address-line1" aria-describedby="street-sub street-err">
+            <label class="sublabel" id="street-sub" for="street">{{t:fields.street.label}}</label>
+            <p class="err" id="street-err" hidden></p>
+          </div>
+          <div class="addr-row">
+            <div class="part addr-row__city">
+              <input type="text" id="city" name="city" maxlength="{{t:fields.city.maxLength}}" required autocomplete="address-level2" aria-describedby="city-sub city-err">
+              <label class="sublabel" id="city-sub" for="city">{{t:fields.city.label}}</label>
+              <p class="err" id="city-err" hidden></p>
+            </div>
+            <div class="part addr-row__state">
+              <select id="state" name="state" required autocomplete="address-level1" aria-describedby="state-sub state-err"></select>
+              <label class="sublabel" id="state-sub" for="state">{{t:fields.state.label}}</label>
+              <p class="err" id="state-err" hidden></p>
+            </div>
+            <div class="part">
+              <input type="text" id="zip" name="zip" inputmode="numeric" maxlength="10" required autocomplete="postal-code" aria-describedby="zip-sub zip-help zip-err">
+              <label class="sublabel" id="zip-sub" for="zip">{{t:fields.zip.label}}</label>
+              <p class="help" id="zip-help">{{t:fields.zip.help}}</p>
+              <p class="err" id="zip-err" hidden></p>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="row">
+          <div class="field col" id="f-phone">
+            <label class="label" for="phone">{{t:fields.phone.label}} <span class="req" aria-hidden="true">*</span></label>
+            <input type="tel" id="phone" name="phone" inputmode="tel" maxlength="14" required autocomplete="tel-national" placeholder="{{t:fields.phone.placeholder}}" aria-describedby="phone-err">
+            <p class="err" id="phone-err" hidden></p>
+          </div>
+          <div class="field col" id="f-email">
+            <label class="label" for="email">{{t:fields.email.label}} <span class="req" aria-hidden="true">*</span></label>
+            <input type="email" id="email" name="email" maxlength="254" required autocomplete="email" spellcheck="false" aria-describedby="email-err">
+            <p class="err" id="email-err" hidden></p>
+          </div>
+        </div>
+
+        <div class="field" id="f-dateOfBirth">
+          <label class="label" for="dateOfBirth">{{t:fields.dateOfBirth.label}} <span class="opt">{{t:common.optional}}</span></label>
+          <input type="date" id="dateOfBirth" name="dateOfBirth" class="input--date" autocomplete="bday" aria-describedby="dateOfBirth-err">
+          <p class="err" id="dateOfBirth-err" hidden></p>
+        </div>
+      </section>
+
+      <!-- -------------------------------- Employment -------------------------------- -->
+      <section class="section" id="sec-employment" aria-labelledby="sec-employment-title">
+        <h2 class="section__title" id="sec-employment-title">{{t:sections.employment}}</h2>
+
+        <div class="field" id="f-local">
+          <label class="label" for="local">{{t:fields.local.label}} <span class="req" aria-hidden="true">*</span></label>
+          <select id="local" name="local" required aria-describedby="local-help local-err"></select>
+          <p class="help" id="local-help">{{t:fields.local.help}}</p>
+          <p class="err" id="local-err" hidden></p>
+          <div class="reveal" id="localOther-wrap" hidden>
+            <label class="label" for="localOther">{{t:fields.local.otherLabel}} <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="localOther" name="localOther" maxlength="100" aria-describedby="localOther-err">
+            <p class="err" id="localOther-err" hidden></p>
+          </div>
+        </div>
+
+        <div class="field" id="f-worksite">
+          <label class="label" for="worksite">{{t:fields.worksite.label}} <span class="req" aria-hidden="true">*</span></label>
+          <select id="worksite" name="worksite" required disabled aria-describedby="worksite-err"></select>
+          <p class="err" id="worksite-err" hidden></p>
+          <div class="reveal" id="worksiteOther-wrap" hidden>
+            <label class="label" for="worksiteOther">{{t:fields.worksite.otherLabel}} <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="worksiteOther" name="worksiteOther" maxlength="100" aria-describedby="worksiteOther-err">
+            <p class="err" id="worksiteOther-err" hidden></p>
+          </div>
+        </div>
+
+        <div class="field" id="f-jobTitle">
+          <label class="label" for="jobTitle">{{t:fields.jobTitle.label}} <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="jobTitle" name="jobTitle" maxlength="{{t:fields.jobTitle.maxLength}}" required autocomplete="organization-title" aria-describedby="jobTitle-err">
+          <p class="err" id="jobTitle-err" hidden></p>
+        </div>
+
+        <div class="field" id="f-timeInPosition">
+          <label class="label" for="timeInPosition">{{t:fields.timeInPosition.label}} <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="timeInPosition" name="timeInPosition" class="input--wide" maxlength="{{t:fields.timeInPosition.maxLength}}" required aria-describedby="timeInPosition-err">
+          <p class="err" id="timeInPosition-err" hidden></p>
+        </div>
+      </section>
+
+      <!-- ---------------------------------- Issue ---------------------------------- -->
+      <section class="section" id="sec-issue" aria-labelledby="sec-issue-title">
+        <h2 class="section__title" id="sec-issue-title">{{t:sections.issue}}</h2>
+
+        <div class="field" id="f-issueType">
+          <label class="label" for="issueType">{{t:fields.issueType.label}} <span class="req" aria-hidden="true">*</span></label>
+          <select id="issueType" name="issueType" required aria-describedby="issueType-err"></select>
+          <p class="err" id="issueType-err" hidden></p>
+          <div class="reveal" id="issueTypeOther-wrap" hidden>
+            <label class="label" for="issueTypeOther">{{t:fields.issueType.otherLabel}} <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="issueTypeOther" name="issueTypeOther" maxlength="{{t:fields.issueType.otherMaxLength}}" aria-describedby="issueTypeOther-err">
+            <p class="err" id="issueTypeOther-err" hidden></p>
+          </div>
+        </div>
+
+        <div class="field" id="f-incidentDate">
+          <label class="label" for="incidentDate">{{t:fields.incidentDate.label}} <span class="req" aria-hidden="true">*</span></label>
+          <input type="date" id="incidentDate" name="incidentDate" class="input--date" required aria-describedby="incidentDate-help incidentDate-err">
+          <p class="help" id="incidentDate-help">{{t:fields.incidentDate.help}}</p>
+          <p class="err" id="incidentDate-err" hidden></p>
+        </div>
+
+        <div class="field" id="f-narrative">
+          <label class="label" for="narrative">{{t:fields.narrative.label}} <span class="req" aria-hidden="true">*</span></label>
+          <textarea id="narrative" name="narrative" rows="8" maxlength="{{t:limits.narrativeMaxChars}}" required aria-describedby="narrative-help narrative-count narrative-limit narrative-err"></textarea>
+          <p class="help" id="narrative-help"></p>
+          <p class="counter" id="narrative-count"></p>
+          <p class="limit-note" id="narrative-limit" role="status" hidden></p>
+          <p class="err" id="narrative-err" hidden></p>
+        </div>
+
+        <div class="field" id="f-requestedOutcome">
+          <label class="label" for="requestedOutcome">{{t:fields.requestedOutcome.label}} <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="requestedOutcome" name="requestedOutcome" maxlength="{{t:fields.requestedOutcome.maxLength}}" required aria-describedby="requestedOutcome-err">
+          <p class="err" id="requestedOutcome-err" hidden></p>
+        </div>
+      </section>
+
+      <!-- ----------------------------- Attached Documents ----------------------------- -->
+      <section class="section" id="sec-documents" aria-labelledby="sec-documents-title">
+        <h2 class="section__title" id="sec-documents-title">{{t:sections.documents}}</h2>
+
+        <div class="field" id="f-files">
+          <label class="label" for="files">{{t:fields.documents.label}} <span class="opt">{{t:common.optional}}</span></label>
+          <input type="file" id="files" name="files" multiple accept=".docx,.xlsx,.csv,.pdf,.png,.jpg,.jpeg,.txt" aria-describedby="files-help files-summary">
+          <p class="help" id="files-help">{{t:fields.documents.help}}</p>
+          <p class="help" id="files-summary"></p>
+          <p class="sr-status visually-hidden" id="files-status" role="status" aria-live="polite"></p>
+          <p class="err" id="files-err" role="alert" hidden></p>
+          <ul class="files" id="files-list" aria-label="{{t:uploads.listLabel}}"></ul>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button type="button" class="btn" id="review-btn" aria-describedby="form-summary">{{t:buttons.review}}</button>
+      </div>
+    </section>
+
+    <!-- ================================ REVIEW ================================ -->
+    <section class="view" id="view-review" aria-labelledby="review-title" hidden>
+      <h2 class="step-bar" id="review-title" tabindex="-1">{{t:review.title}}</h2>
+      <p class="review-intro">{{t:review.intro}}</p>
+
+      <section class="review" aria-labelledby="review-member-title">
+        <div class="review__head">
+          <h3 id="review-member-title">{{t:sections.member}}</h3>
+          <button type="button" class="link-button" data-edit="member" aria-label="{{t:buttons.edit}}: {{t:sections.member}}">{{t:buttons.edit}}</button>
+        </div>
+        <dl class="review__list" id="review-member"></dl>
+      </section>
+
+      <section class="review" aria-labelledby="review-employment-title">
+        <div class="review__head">
+          <h3 id="review-employment-title">{{t:sections.employment}}</h3>
+          <button type="button" class="link-button" data-edit="employment" aria-label="{{t:buttons.edit}}: {{t:sections.employment}}">{{t:buttons.edit}}</button>
+        </div>
+        <dl class="review__list" id="review-employment"></dl>
+      </section>
+
+      <section class="review" aria-labelledby="review-issue-title">
+        <div class="review__head">
+          <h3 id="review-issue-title">{{t:sections.issue}}</h3>
+          <button type="button" class="link-button" data-edit="issue" aria-label="{{t:buttons.edit}}: {{t:sections.issue}}">{{t:buttons.edit}}</button>
+        </div>
+        <dl class="review__list" id="review-issue"></dl>
+      </section>
+
+      <section class="review" aria-labelledby="review-documents-title">
+        <div class="review__head">
+          <h3 id="review-documents-title">{{t:sections.documents}}</h3>
+          <button type="button" class="link-button" data-edit="documents" aria-label="{{t:buttons.edit}}: {{t:sections.documents}}">{{t:buttons.edit}}</button>
+        </div>
+        <ul class="review__files" id="review-documents"></ul>
+      </section>
+
+      <div class="error-summary" id="submit-error" role="alert" tabindex="-1" hidden></div>
+
+      <div class="upload-progress" id="upload-progress" hidden>
+        <label for="upload-bar">{{t:progress.label}}</label>
+        <progress id="upload-bar" max="100" value="0"></progress>
+        <p class="upload-progress__text" id="upload-text" aria-live="polite"></p>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn" id="submit-btn">{{t:buttons.submit}}</button>
+        <button type="button" class="btn btn--secondary" id="back-btn">{{t:buttons.back}}</button>
+      </div>
+    </section>
+  </form>
+
+  <!-- ============================== CONFIRMATION ============================== -->
+  <section class="confirmation" id="confirmation" aria-labelledby="confirmation-title" hidden>
+    <h2 class="step-bar" id="confirmation-title" tabindex="-1">{{t:confirmation.title}}</h2>
+    <p>{{t:confirmation.body}}</p>
+    <p class="confirmation__ref" id="confirmation-ref"></p>
+    <div class="actions">
+      <button type="button" class="btn" id="new-request">{{t:buttons.newRequest}}</button>
+    </div>
+  </section>
 </main>
 </div>
+
+<div id="strings" hidden data-json="{{json:page sections fields issueTypes common messages uploads review buttons progress confirmation limits}}"></div>
 </body>
 </html>

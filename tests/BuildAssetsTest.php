@@ -20,6 +20,8 @@ final class BuildAssetsTest extends TestCase
         $this->t->write('app/shared-assets/img/vea-logo-white.png', 'png1');
         $this->t->write('app/shared-assets/img/icons/favicon-32.png', 'png2');
         $this->t->write('app/shared-assets/img/icons/apple-touch-icon.png', 'png3');
+        // the Legal form's own allowlist
+        $this->t->write('app/forms/legal/assets/js/legal.js', '/* js */');
     }
 
     protected function tearDown(): void
@@ -44,7 +46,7 @@ final class BuildAssetsTest extends TestCase
     {
         [$code, $out] = $this->t->run('build-assets.php', '--form=legal');
         self::assertSame(0, $code, $out);
-        self::assertSame(['css/app.css', 'img/icons/apple-touch-icon.png', 'img/icons/favicon-32.png', 'img/vea-logo-white.png'], $this->published());
+        self::assertSame(['css/app.css', 'img/icons/apple-touch-icon.png', 'img/icons/favicon-32.png', 'img/vea-logo-white.png', 'js/legal.js'], $this->published());
 
         $m = json_decode($this->t->read('app/data/assets-legal.json'), true, 8, JSON_THROW_ON_ERROR);
         self::assertSame('/legal/assets/css/app.css?v=' . substr(hash('sha256', 'body{}'), 0, 12), $m['files']['css/app.css']);

@@ -31,7 +31,7 @@ const SHARED = [
 
 /** Form-only files (path under app/forms/<form>/assets/). Prompt 3 adds js/legal.js. */
 const FORM_FILES = [
-    'legal' => [],
+    'legal' => ['js/legal.js'],
 ];
 
 const EXTENSIONS = ['css', 'js', 'png', 'ico', 'svg', 'woff2'];

@@ -39,8 +39,15 @@ final class TemplateContentTest extends TestCase
             'Leave (including those related to the Family and Medical Leave Act)',
             'Other',
         ], $c['issueTypes']);
-        self::assertStringStartsWith('TBD — Legal:', $c['banner']['privilege']);
-        self::assertStringStartsWith('TBD — Legal:', $c['pdf']['banner']);
+        // PLAN 1.5: exact banner text, also used for the PDF; no placeholders left
+        $banner = 'PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL';
+        self::assertSame($banner, $c['banner']['privilege']);
+        self::assertSame($banner, $c['pdf']['banner']);
+        self::assertStringNotContainsString('TBD', (string) file_get_contents(Template::FORMS_DIR . '/legal/content.json'));
+        // PLAN 1.5: submitter handle override map lives in the repo
+        self::assertSame(['choward1' => 'choward'], $c['handles']['overrides']);
+        self::assertSame('Other', $c['fields']['issueType']['otherValue']);
+        self::assertSame(end($c['issueTypes']), $c['fields']['issueType']['otherValue']);
         self::assertSame('Enter all 10 digits, including leading zeros (e.g., 0001234567).', $c['fields']['membershipNumber']['help']);
         self::assertSame('Virginia', $c['fields']['state']['default']);
     }
