@@ -19,15 +19,25 @@
  * Does nothing if vendor/ is already clean. Runs automatically after
  * `composer install` / `composer update` (see composer.json), before check-perms.
  *
- * Usage: php bin/fix-vendor-perms.php
+ * Usage: php bin/fix-vendor-perms.php [vendor|tests/e2e/node_modules]   (default: vendor)
+ * npm has the same problem as composer (its tarball extraction chmods directories),
+ * so run it with tests/e2e/node_modules after `npm install` in tests/e2e/.
  */
 
 declare(strict_types=1);
 
 const GROUP = 'vea-intake';
 
+/** Trees this script may re-create (composer's vendor/ and the e2e tests' npm node_modules/). */
+const TREES = ['vendor', 'tests/e2e/node_modules'];
+
 $root = dirname(__DIR__);
-$vendor = $root . '/vendor';
+$rel = $argv[1] ?? 'vendor';
+if (!in_array($rel, TREES, true)) {
+    fwrite(STDERR, 'fix-vendor-perms: the tree must be one of: ' . implode(', ', TREES) . "\n");
+    exit(1);
+}
+$vendor = "$root/$rel";
 umask(027);
 
 $group = posix_getgrnam(GROUP);
@@ -38,7 +48,7 @@ if ($group === false) {
 $gid = $group['gid'];
 
 if (!is_dir($vendor) || is_link($vendor)) {
-    echo "fix-vendor-perms: no vendor/ directory, nothing to do\n";
+    echo "fix-vendor-perms: no $rel/ directory, nothing to do\n";
     exit(0);
 }
 
@@ -61,13 +71,14 @@ $needsFix = static function (string $dir) use ($gid): bool {
 };
 
 if (!$needsFix($vendor)) {
-    echo "fix-vendor-perms: vendor/ already clean\n";
+    echo "fix-vendor-perms: $rel/ already clean\n";
     exit(0);
 }
 
 $tag = getmypid() . '-' . bin2hex(random_bytes(3));
-$new = "$root/.vendor-new-$tag";
-$old = "$root/.vendor-old-$tag";
+$base = dirname($vendor) . "/." . basename($vendor);   // hidden sibling inside the repo
+$new = "$base-new-$tag";
+$old = "$base-old-$tag";
 
 /** Recursive copy that creates every entry anew (no metadata preserved except the execute bit). */
 $copy = static function (string $src, string $dst) use (&$copy): void {
@@ -98,8 +109,8 @@ $copy = static function (string $src, string $dst) use (&$copy): void {
 };
 
 /** Recursive delete of a tree this script created or replaced. Never follows symlinks. */
-$remove = static function (string $path) use (&$remove, $root): void {
-    if (!str_starts_with($path, "$root/.vendor-")) {
+$remove = static function (string $path) use (&$remove, $base): void {
+    if (!str_starts_with($path, "$base-")) {
         throw new LogicException("refusing to remove $path");
     }
     if (is_link($path) || is_file($path)) {
@@ -120,11 +131,11 @@ try {
         throw new RuntimeException('the copy still has wrong permissions (is the repo root setgid with a default ACL?)');
     }
     if (!rename($vendor, $old)) {
-        throw new RuntimeException('could not move vendor/ aside');
+        throw new RuntimeException("could not move $rel/ aside");
     }
     if (!rename($new, $vendor)) {
         rename($old, $vendor);
-        throw new RuntimeException('could not move the copy into place; vendor/ restored');
+        throw new RuntimeException("could not move the copy into place; $rel/ restored");
     }
     $remove($old);
 } catch (Throwable $e) {
@@ -134,5 +145,5 @@ try {
     fwrite(STDERR, 'fix-vendor-perms: ' . $e->getMessage() . "\n");
     exit(1);
 }
-echo "fix-vendor-perms: vendor/ re-created with group " . GROUP . ", setgid dirs, no 'other' access\n";
+echo "fix-vendor-perms: $rel/ re-created with group " . GROUP . ", setgid dirs, no 'other' access\n";
 exit(0);

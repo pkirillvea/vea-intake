@@ -1,0 +1,12 @@
+{
+  "name": "vea-intake-e2e",
+  "private": true,
+  "description": "Playwright QA for the Legal form, against a local php -S server over the built public/ (see router.php)",
+  "type": "module",
+  "scripts": {
+    "test": "node node_modules/@playwright/test/cli.js test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}

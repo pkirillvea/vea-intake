@@ -36,3 +36,9 @@ Thumbs.db
 
 # Temporary trees of bin/fix-vendor-perms.php (only left behind if it crashed)
 /.vendor-*/
+
+# Playwright e2e (tests/e2e): dependencies and run output
+/tests/e2e/node_modules/
+/tests/e2e/.node_modules-*/
+/tests/e2e/test-results/
+/tests/e2e/playwright-report/

@@ -1,0 +1,237 @@
+// End-to-end QA of the Legal form (front end only; Prompt 3).
+// Against the local php -S server (router.php): the real CSP applies; ping.php and
+// submit.php are 404 like nginx today, and are mocked with page.route() where a
+// test needs another answer. Fake data only. Expected texts come from content.json.
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const C = JSON.parse(readFileSync(resolve(ROOT, 'app/forms/legal/content.json'), 'utf8'));
+const DATA = JSON.parse(readFileSync(resolve(ROOT, 'app/data/form-data.json'), 'utf8'));
+const fmt = (tpl, vars) => String(tpl).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+const NL = DATA.notListed;
+const LOCAL = DATA.locals.find((l) => l.worksites.length > 2);         // a local with real worksites
+const LOCAL2 = DATA.locals.find((l) => l !== LOCAL && l.worksites.length > 2);
+const MB = 1024 * 1024;
+
+/** Collect CSP violations and page errors; assert none at the end of each test. */
+function watch(page) {
+  const problems = [];
+  page.on('console', (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) problems.push(m.text()); });
+  page.on('pageerror', (e) => problems.push(String(e)));
+  return problems;
+}
+
+async function open(page) {
+  await page.goto('/legal/');
+  await expect(page.locator('#legal-form')).toBeVisible();
+}
+
+async function fillValid(page) {
+  await page.fill('#firstName', 'Testy');
+  await page.fill('#lastName', 'McTestface');
+  await page.fill('#membershipNumber', '0001234567');
+  await page.fill('#street', '123 Test St');
+  await page.fill('#city', 'Richmond');
+  await page.fill('#zip', '23219');
+  await page.fill('#phone', '8045551234');
+  await page.fill('#email', 'testy@example.org');
+  await page.selectOption('#local', LOCAL.name);
+  await page.selectOption('#worksite', LOCAL.worksites[0]);
+  await page.fill('#jobTitle', 'Teacher');
+  await page.fill('#timeInPosition', '3 years');
+  await page.selectOption('#issueType', C.issueTypes[1]);
+  await page.fill('#incidentDate', '2026-01-15');
+  await page.fill('#narrative', 'A short fake narrative for testing.');
+  await page.fill('#requestedOutcome', 'Advice');
+}
+
+const words = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
+
+test('page: banner, sections in order, signed-in line hidden, state defaults to Virginia', async ({ page }) => {
+  const problems = watch(page);
+  await open(page);
+  await expect(page.locator('.privilege')).toHaveText(C.banner.privilege);
+  await expect(page.locator('.section__title')).toHaveText([C.sections.member, C.sections.employment, C.sections.issue, C.sections.documents]);
+  await expect(page.locator('#signed-in')).toBeHidden();               // ping.php is 404 until Prompt 4
+  await expect(page.locator('#state')).toHaveValue(C.fields.state.default);
+  await expect(page.locator('#worksite')).toBeDisabled();
+  expect(problems).toEqual([]);
+});
+
+test('cascade: local → worksites, change resets, OTHER / NOT LISTED reveals text fields', async ({ page }) => {
+  const problems = watch(page);
+  await open(page);
+  await page.selectOption('#local', LOCAL.name);
+  await expect(page.locator('#worksite')).toBeEnabled();
+  const options = await page.locator('#worksite option').allTextContents();
+  expect(options.slice(1)).toEqual(LOCAL.worksites);                    // after "Select…"
+  expect(options.at(-1)).toBe(NL);
+
+  await page.selectOption('#worksite', NL);
+  await expect(page.locator('#worksiteOther')).toBeVisible();
+  await page.fill('#worksiteOther', 'Annex');
+
+  await page.selectOption('#local', LOCAL2.name);                       // changing the local resets the worksite
+  await expect(page.locator('#worksite')).toHaveValue('');
+  await expect(page.locator('#worksiteOther-wrap')).toBeHidden();
+
+  await page.selectOption('#local', NL);
+  await expect(page.locator('#localOther')).toBeVisible();
+  expect((await page.locator('#worksite option').allTextContents()).slice(1)).toEqual([NL]);
+  expect(problems).toEqual([]);
+});
+
+test('"Other" issue type reveals a required text field; errors are not colour-only', async ({ page }) => {
+  await open(page);
+  await fillValid(page);
+  await page.selectOption('#issueType', C.fields.issueType.otherValue);
+  await expect(page.locator('#issueTypeOther')).toBeVisible();
+  await page.click('#review-btn');
+  await expect(page.locator('#form-summary')).toBeVisible();
+  const err = page.locator('#issueTypeOther-err');
+  await expect(err).toBeVisible();
+  await expect(err.locator('.err__prefix')).toHaveText(C.common.errorPrefix);   // "Error:" text, not colour alone
+  await expect(err).toContainText(C.messages.otherRequired);
+  await expect(page.locator('#issueTypeOther')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#issueTypeOther-wrap')).toHaveClass(/is-invalid/);
+  await page.fill('#issueTypeOther', 'Something else');
+  await page.click('#review-btn');
+  await expect(page.locator('#view-review')).toBeVisible();
+});
+
+test('narrative: live word counter and a hard stop at the limit', async ({ page }) => {
+  await open(page);
+  const max = C.limits.narrativeMaxWords;
+  await page.fill('#narrative', words(max));
+  await expect(page.locator('#narrative-count')).toHaveText(fmt(C.fields.narrative.counter, { count: max, max }));
+  await page.locator('#narrative').press('End');
+  await page.locator('#narrative').pressSequentially(' more');
+  expect((await page.locator('#narrative').inputValue()).trim().split(/\s+/).length).toBe(max);
+  await expect(page.locator('#narrative-limit')).toHaveText(fmt(C.messages.narrativeLimit, { max }));
+
+  // a paste that would exceed the limit is not added
+  await page.fill('#narrative', words(10));
+  await page.locator('#narrative').evaluate((el, text) => {
+    el.value = text;
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+  }, words(max + 5));
+  expect((await page.locator('#narrative').inputValue()).trim().split(/\s+/).length).toBe(10);
+  await expect(page.locator('#narrative-limit')).toHaveText(fmt(C.messages.narrativePaste, { max }));
+});
+
+test('uploads: list with remove, count/size/type/total limits announced', async ({ page }) => {
+  await open(page);
+  const file = (name, size) => ({ name, mimeType: 'application/octet-stream', buffer: Buffer.alloc(size, 1) });
+  await page.setInputFiles('#files', [file('a.pdf', 1000), file('b.txt', 2000)]);
+  await expect(page.locator('#files-list li')).toHaveCount(2);
+  await expect(page.locator('#files-status')).toContainText(fmt(C.uploads.added, { name: 'a.pdf' }));
+
+  await page.setInputFiles('#files', [file('evil.exe', 10)]);
+  await expect(page.locator('#files-err')).toContainText(fmt(C.uploads.badType, { name: 'evil.exe' }));
+  await page.setInputFiles('#files', [file('big.pdf', C.limits.maxFileMb * MB + 1)]);
+  await expect(page.locator('#files-err')).toContainText(fmt(C.uploads.tooBig, { name: 'big.pdf', max: C.limits.maxFileMb }));
+
+  await page.setInputFiles('#files', [file('n1.pdf', 9 * MB), file('n2.pdf', 9 * MB), file('n3.pdf', 9 * MB)]);
+  await expect(page.locator('#files-err')).toContainText(fmt(C.uploads.totalTooBig, { name: 'n3.pdf', max: C.limits.maxTotalMb }));
+  await expect(page.locator('#files-list li')).toHaveCount(4);
+
+  await page.setInputFiles('#files', [file('c.csv', 10), file('d.png', 10)]);
+  await expect(page.locator('#files-list li')).toHaveCount(C.limits.maxFiles);
+  await expect(page.locator('#files-err')).toContainText(fmt(C.uploads.tooMany, { name: 'd.png', max: C.limits.maxFiles }));
+
+  await page.getByRole('button', { name: fmt(C.uploads.removeLabel, { name: 'a.pdf' }) }).click();
+  await expect(page.locator('#files-list li')).toHaveCount(C.limits.maxFiles - 1);
+  await expect(page.locator('#files-status')).toHaveText(fmt(C.uploads.removed, { name: 'a.pdf' }));
+});
+
+test('review and edit round trip keeps every answer', async ({ page }) => {
+  const problems = watch(page);
+  await open(page);
+  await fillValid(page);
+  await page.setInputFiles('#files', [{ name: 'evidence.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') }]);
+  await page.click('#review-btn');
+  await expect(page.locator('#view-review')).toBeVisible();
+  await expect(page.locator('#view-form')).toBeHidden();
+  await expect(page.locator('#review-member')).toContainText('Testy McTestface');
+  await expect(page.locator('#review-member')).toContainText('(804) 555-1234');
+  await expect(page.locator('#review-member')).toContainText(C.fields.dateOfBirth.notProvided);
+  await expect(page.locator('#review-employment')).toContainText(LOCAL.worksites[0]);
+  await expect(page.locator('#review-issue')).toContainText('01/15/2026');
+  await expect(page.locator('#review-documents')).toContainText('evidence.pdf');
+
+  await page.getByRole('button', { name: `${C.buttons.edit}: ${C.sections.employment}` }).click();
+  await expect(page.locator('#view-form')).toBeVisible();
+  await expect(page.locator('#local')).toBeFocused();
+  await expect(page.locator('#worksite')).toHaveValue(LOCAL.worksites[0]);
+  await page.fill('#jobTitle', 'Counselor');
+  await page.click('#review-btn');
+  await expect(page.locator('#review-employment')).toContainText('Counselor');
+
+  await page.goBack();                                                   // browser Back returns to the form
+  await expect(page.locator('#view-form')).toBeVisible();
+  await expect(page.locator('#firstName')).toHaveValue('Testy');
+  expect(problems).toEqual([]);
+});
+
+test('submit until Prompt 4: "not enabled yet" and the answers are kept', async ({ page }) => {
+  await open(page);
+  await fillValid(page);
+  await page.click('#review-btn');
+  await page.click('#submit-btn');
+  await expect(page.locator('#submit-error')).toHaveText(C.messages.notEnabled);
+  await expect(page.locator('#submit-btn')).toBeEnabled();
+  await page.click('#back-btn');
+  await expect(page.locator('#firstName')).toHaveValue('Testy');
+});
+
+test('submit contract (mocked): expired session keeps data; success shows the reference and clears', async ({ page }) => {
+  await open(page);
+  await fillValid(page);
+  await page.click('#review-btn');
+
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 401, body: '' }));
+  await page.click('#submit-btn');
+  await expect(page.locator('#submit-error')).toContainText(C.messages.sessionExpired);
+  await expect(page.locator('#submit-error a')).toHaveAttribute('target', '_blank');
+  await expect(page.locator('#submit-error a')).toHaveAttribute('href', '/legal/');
+
+  let sent = null;
+  await page.unroute('**/legal/ping.php');
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":"Staff Member"}' }));
+  await page.route('**/legal/submit.php', (r) => {
+    sent = r.request();
+    r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"id":"20261123-1200-TEST"}' });
+  });
+  await page.click('#submit-btn');
+  await expect(page.locator('#confirmation')).toBeVisible();
+  await expect(page.locator('#confirmation-ref')).toHaveText(fmt(C.confirmation.reference, { id: '20261123-1200-TEST' }));
+  await expect(page.locator('#signed-in')).toHaveText(fmt(C.page.signedInAs, { name: 'Staff Member', email: 'staff@example.org' }));
+
+  // the request matches docs/PAYLOAD.md: multipart with a JSON "payload" field
+  expect(sent.method()).toBe('POST');
+  expect(sent.headers()['content-type']).toMatch(/^multipart\/form-data; boundary=/);
+  const body = sent.postData() || '';
+  expect(body).toContain('name="payload"');
+  expect(body).toContain('"membershipNumber":"0001234567"');
+  expect(body).toContain('"phone":"8045551234"');
+  expect(body).toContain(`"formVersion":"${C._meta.formVersion}"`);
+
+  await page.click('#new-request');
+  await expect(page.locator('#firstName')).toHaveValue('');
+});
+
+test('server field errors are mapped back and the answers are kept', async ({ page }) => {
+  await open(page);
+  await fillValid(page);
+  await page.click('#review-btn');
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 204, body: '' }));
+  await page.route('**/legal/submit.php', (r) => r.fulfill({ status: 400, contentType: 'application/json', body: '{"ok":false,"error":"invalid_input","fields":["zip","email"]}' }));
+  await page.click('#submit-btn');
+  await expect(page.locator('#submit-error')).toContainText(C.fields.email.label);
+  await page.click('#back-btn');
+  await expect(page.locator('#email-err')).toContainText(C.messages.serverRejected);
+  await expect(page.locator('#email')).toHaveValue('testy@example.org');
+});
