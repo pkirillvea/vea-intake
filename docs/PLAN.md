@@ -92,7 +92,7 @@ PHP-FPM pool "vea-intake" (dedicated user, hardened ini, upload_tmp_dir on tmpfs
     data/form-data.json                            ← GENERATED (server copy)
     storage/fonts/                                 ← dompdf font cache (no PII), built by bin/warm-fonts.php
   bin/import-vea-join-data.php  bin/build-data.php  bin/build-assets.php  bin/build-site.php
-  bin/warm-fonts.php  bin/render-sample-pdf.php  bin/check-perms.php
+  bin/warm-fonts.php  bin/render-sample-pdf.php (Prompt 4)  bin/check-perms.php  bin/fix-vendor-perms.php
   tests/                           ← PHPUnit 12 (namespace VeaIntake\Tests\)
   composer.json  phpunit.xml  .gitignore
   docs/PLAN.md  docs/README.md  docs/RUNBOOK.md
@@ -105,7 +105,7 @@ PHP-FPM pool "vea-intake" (dedicated user, hardened ini, upload_tmp_dir on tmpfs
 - `developer` is **not** in the `vea-intake` group, so it (and Claude Code) cannot read `app.env`. Paul edits it with `sudoedit`.
 - Default ACLs: new files 0640, new dirs 2750, group vea-intake, nothing for "other". www-data has traverse-only on the repo root and read under `public/` only (default ACL there too). It cannot enter `app/`, `bin/`, `docs/`, `tests/`, `vendor/` or any new top-level dir.
 - `/var/www` is root-owned, so creating, renaming or removing top-level entries there needs sudo.
-- **Composer runs under `umask 027`** (`umask 027 && composer install`). Composer sets the mode of `vendor/bin/*` from the umask; with the usual 002 those files would get access for "other". `bin/check-perms.php` (read-only) reports any path with "other" access, group write, a wrong group or a non-setgid directory.
+- **Composer runs under `umask 027`** (`umask 027 && composer install`). Composer sets the mode of `vendor/bin/*` from the umask; with the usual 002 those files would get access for "other". The umask alone is not enough: composer's `unzip` chmods every extracted directory, and Linux clears the setgid bit when a non-member of the group (developer) chmods it, so everything below gets group `developer`, which developer cannot `chgrp` back. **`bin/fix-vendor-perms.php`** (runs automatically after `composer install`/`update`) re-creates `vendor/` by copying it inside the repo so the copy inherits group, setgid and the default ACL, then swaps it in. **`bin/check-perms.php`** (read-only, runs after it) reports any path with "other" access, group write, a wrong group or a non-setgid directory. (vea-join uses `chgrp` in `bin/fix-perms.sh` instead, which works there only because developer is in the vea-join group.)
 
 ### Code organization
 
