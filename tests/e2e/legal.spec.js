@@ -61,17 +61,45 @@ test('page: banner, sections in order, signed-in line hidden, state defaults to 
   expect(problems).toEqual([]);
 });
 
-test('header: regular weight only, no synthetic bold', async ({ page }) => {
+/**
+ * The font face Chromium actually rendered for an element (CDP), e.g. "SegoeUI-Semibold".
+ * With font-synthesis: none the browser can only use real faces: a 600 request gets the
+ * family's 600 face if it has one, otherwise the nearest heavier real face (700).
+ */
+async function renderedFace(page, selector) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('DOM.enable');
+  await cdp.send('CSS.enable');
+  const { root } = await cdp.send('DOM.getDocument');
+  const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+  const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
+  await cdp.detach();
+  return fonts.sort((a, b) => b.glyphCount - a.glyphCount)[0];
+}
+const SEMIBOLD_FACE = /semi\s*-?bold|demi\s*-?bold|-600\b|w6\b/i;
+const HEAVY_FACE = /semi\s*-?bold|demi\s*-?bold|-600\b|w6\b|bold|heavy|black/i;
+
+test('header title and privilege banner: semibold 600 from a real face, no synthetic bold', async ({ page }, testInfo) => {
   const problems = watch(page);
   await open(page);
   await expect(page.locator('.banner__title')).toHaveText(C.page.title);
-  const styles = await page.locator('header.banner').evaluate((h) => [h, ...h.querySelectorAll('*')].map((n) => {
-    const cs = getComputedStyle(n);
-    return { tag: n.tagName, weight: cs.fontWeight, synth: cs.fontSynthesisWeight || cs.fontSynthesis };
+  await expect(page.locator('.banner__title')).toBeVisible();
+  const st = await page.evaluate(() => ['.banner__title', '.privilege', 'header.banner'].map((sel) => {
+    const cs = getComputedStyle(document.querySelector(sel));
+    return { sel, weight: cs.fontWeight, synth: cs.fontSynthesisWeight || cs.fontSynthesis, align: cs.textAlign, size: cs.fontSize };
   }));
-  for (const st of styles) {
-    expect(st.weight, `${st.tag} font-weight`).toBe('400');
-    expect(st.synth, `${st.tag} font-synthesis`).toMatch(/^none/);
+  expect(st[0]).toMatchObject({ weight: '600', size: page.viewportSize().width >= 576 ? '24px' : '20px' });   // sizes unchanged
+  expect(st[1]).toMatchObject({ weight: '600', align: 'center' });
+  for (const x of st) expect(x.synth, `${x.sel} font-synthesis`).toMatch(/^none/);
+
+  for (const sel of ['.banner__title', '.privilege']) {
+    const face = await renderedFace(page, sel);
+    testInfo.annotations.push({ type: 'rendered face', description: `${sel}: ${face.familyName} / ${face.postScriptName}` });
+    // A real face of weight >= 600 is used (never the regular face, never synthesized).
+    expect(face.postScriptName, `${sel} rendered face`).toMatch(HEAVY_FACE);
+    // Where the family ships a 600 face (Segoe UI, San Francisco, Roboto variable), it must be that one.
+    // This server's Chromium only has DejaVu Sans (Regular + Bold): set E2E_REQUIRE_600=1 on a machine with a 600 face.
+    if (process.env.E2E_REQUIRE_600 === '1') expect(face.postScriptName, `${sel} rendered face`).toMatch(SEMIBOLD_FACE);
   }
   expect(problems).toEqual([]);
 });
@@ -106,8 +134,10 @@ test('theme: header bar with logo then title, card on the textured gray page, co
       card: cs('.page').backgroundColor, cardRadius: cs('.page').borderTopLeftRadius, cardShadow: cs('.page').boxShadow,
       cardLeft: card.left, cardRight: window.innerWidth - card.right, cardWidth: card.width,
       privilegeBg: cs('.privilege').backgroundColor, privilegeFg: cs('.privilege').color,
-      privilegeBorder: [cs('.privilege').borderLeftWidth, cs('.privilege').borderLeftColor], privilegeWeight: cs('.privilege').fontWeight,
-      label: [cs('label[for="firstName"]').color, cs('label[for="firstName"]').textTransform, cs('label[for="firstName"]').fontWeight],
+      privilegeBorder: cs('.privilege').borderLeftWidth, privilegeWeight: cs('.privilege').fontWeight, privilegeAlign: cs('.privilege').textAlign,
+      label: [cs('label[for="firstName"]').color, cs('label[for="firstName"]').textTransform, cs('label[for="firstName"]').fontWeight,
+        cs('label[for="firstName"]').fontSize, cs('label[for="firstName"]').letterSpacing],
+      worksite: [document.querySelector('#worksite').disabled, cs('#worksite').borderTopStyle, cs('#worksite').borderTopColor],
       req: cs('label[for="firstName"] .req').color,
       input: [cs('#firstName').backgroundColor, cs('#firstName').borderTopColor, cs('#firstName').borderTopLeftRadius],
       section: [cs('#sec-member-title').color, cs('#sec-member-title').fontWeight, cs('#sec-member-title').borderBottomStyle, cs('#sec-member-title').borderBottomColor, cs('#sec-member-title').backgroundColor],
@@ -124,9 +154,11 @@ test('theme: header bar with logo then title, card on the textured gray page, co
   expect(s.cardShadow).not.toBe('none');
   expect(s.privilegeBg).toBe(rgb('#E8F0F6'));
   expect(s.privilegeFg).toBe(rgb('#023E5E'));
-  expect(s.privilegeBorder).toEqual(['4px', rgb('#025D8C')]);
-  expect(Number(s.privilegeWeight)).toBeGreaterThanOrEqual(700);
-  expect(s.label).toEqual([rgb('#444444'), 'uppercase', '700']);
+  expect(s.privilegeBorder).toBe('0px');                                // centred text: left border dropped
+  expect(s.privilegeWeight).toBe('600');
+  expect(s.privilegeAlign).toBe('center');
+  expect(s.label).toEqual([rgb('#444444'), 'none', '700', '15px', 'normal']);   // case, weight, size as ac99e69; only the colour changed
+  expect(s.worksite).toEqual([true, 'dashed', rgb('#8A8A8A')]);          // "choose a local first" state
   expect(s.req).toBe(rgb('#B42318'));
   expect(s.input).toEqual([rgb('#FBFBFB'), rgb('#8A8A8A'), '0px']);
   expect(s.section).toEqual([rgb('#333333'), '700', 'dotted', rgb('#CCCCCC'), 'rgba(0, 0, 0, 0)']);

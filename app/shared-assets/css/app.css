@@ -9,7 +9,7 @@
 
 /* ------------------------------------------------------- theme: Legal */
 /* Look of VEA's MachForm forms (VEA-Retired): blue header bar, white card on a
-   textured gray page, uppercase field labels, dotted section rules, square corners. */
+   textured gray page, field labels in --label, dotted section rules, square corners. */
 :root,
 [data-theme="legal"] {
   --header: #025D8C;         /* header bar: white on it 7.13:1 */
@@ -90,7 +90,7 @@ main { padding: 0 1rem 2rem; }
 main:focus { outline: none; }
 
 /* -------------------------------------------------------- header bar */
-.banner {   /* white on header 7.13:1. Regular weight only; no synthetic bold or italic */
+.banner {   /* white on header 7.13:1. No synthetic bold or italic: only real faces */
   background: var(--header); color: #fff;
   font-weight: 400; font-synthesis: none;
 }
@@ -100,7 +100,7 @@ main:focus { outline: none; }
 }
 .banner__title {
   margin: 0;
-  font-size: 1.25rem; line-height: 1.2; font-weight: 400; letter-spacing: -0.01em;
+  font-size: 1.25rem; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em;   /* semibold (PLAN §1 Theme) */
 }
 .banner__logo { width: 6.5rem; flex: none; }
 
@@ -108,8 +108,8 @@ main:focus { outline: none; }
 .privilege {
   margin: 0; padding: 0.5rem 0.75rem;
   background: var(--banner-bg); color: var(--banner-fg);   /* 9.83:1 */
-  border-left: 4px solid var(--header);
-  font-size: 0.8125rem; font-weight: 800; letter-spacing: 0.03em;
+  font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.03em; text-align: center;   /* semibold */
+  font-synthesis: none;
 }
 
 .signed-in { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.8125rem; }   /* 7.46:1 */
@@ -140,11 +140,10 @@ legend { padding: 0; }
 .field { margin: 0 0 var(--field-gap); }
 .label {
   display: block; margin: 0 0 0.25rem;
-  color: var(--label); font-weight: 700; font-size: 0.9375rem;   /* 9.74:1 */
-  text-transform: uppercase; letter-spacing: 0.02em;
+  color: var(--label); font-weight: 700; font-size: 0.9375rem;   /* 9.74:1; case, size, weight as vea-join */
 }
 .req { color: var(--error); font-weight: 700; }   /* 6.57:1; plus the "Fields marked * are required" note */
-.opt { color: var(--muted); font-weight: 400; font-size: 0.875rem; text-transform: none; letter-spacing: 0; }
+.opt { color: var(--muted); font-weight: 400; font-size: 0.875rem; }
 .sublabel, .help, .counter {
   display: block; margin: 0.125rem 0 0;
   color: var(--muted); font-size: 0.8125rem; font-weight: 400;
