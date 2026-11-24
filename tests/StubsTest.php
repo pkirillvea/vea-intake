@@ -11,7 +11,6 @@ use VeaIntake\Core\AccessIdentity;
 use VeaIntake\Core\Audit;
 use VeaIntake\Core\FormData;
 use VeaIntake\Core\UploadValidator;
-use VeaIntake\Forms\Legal\LegalValidator;
 use VeaIntake\Tests\Support\MockHttpClient;
 
 /** The Prompt 4 classes exist with their signatures and refuse to run until implemented. */
@@ -23,7 +22,6 @@ final class StubsTest extends TestCase
         yield 'UploadValidator::validate' => [fn () => (new UploadValidator(5, 1, 1))->validate([])];
         yield 'UploadValidator::safeName' => [fn () => UploadValidator::safeName('a.pdf', 1)];
         yield 'Audit::build' => [fn () => Audit::build('id', $who, [], [], [], 'v', new \DateTimeImmutable())];
-        yield 'LegalValidator::validate' => [fn () => (new LegalValidator(self::formData(), 'v', 300))->validate([])];
     }
 
     #[DataProvider('stubs')]

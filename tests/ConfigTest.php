@@ -37,10 +37,6 @@ final class ConfigTest extends TestCase
         self::assertSame('aud-tag-123', $c->accessAud('legal'));
         self::assertSame('legal@example.org', $c->mailTo('legal'));
         self::assertFalse($c->testMode());
-        self::assertSame(5, $c->uploadMaxFiles());
-        self::assertSame(10 * 1024 * 1024, $c->uploadMaxFileBytes());
-        self::assertSame(25 * 1024 * 1024, $c->uploadMaxTotalBytes());
-        self::assertSame(300, $c->narrativeMaxWords());
         self::assertSame('very-secret-value', $c->graphClientSecret());
     }
 
@@ -80,8 +76,6 @@ final class ConfigTest extends TestCase
             ['ACCESS_TEAM_DOMAIN' => 'https://evil.example.com'],
             ['MAIL_TO_LEGAL' => 'not-an-email'],
             ['DISPLAY_TZ' => 'Mars/Base'],
-            ['UPLOAD_MAX_FILES' => '0'],
-            ['NARRATIVE_MAX_WORDS' => 'lots'],
             ['ACCESS_AUD_LEGAL' => ''],
         ] as $bad) {
             try {
@@ -91,6 +85,15 @@ final class ConfigTest extends TestCase
                 self::assertStringStartsWith('app.env: ', $e->getMessage());
             }
         }
+    }
+
+    public function testObsoleteLimitKeysAreIgnored(): void
+    {
+        // Limits live in content.json (FormLimits); leftover app.env lines must not break anything.
+        $c = Config::fromArray(self::valid(['UPLOAD_MAX_FILES' => '0', 'NARRATIVE_MAX_WORDS' => 'lots', 'FORM_VERSION_LEGAL' => '']));
+        self::assertSame('legal@example.org', $c->mailTo('legal'));
+        self::assertFalse(method_exists($c, 'uploadMaxFiles'));
+        self::assertFalse(method_exists($c, 'narrativeMaxWords'));
     }
 
     public function testErrorsNeverContainSecretValues(): void

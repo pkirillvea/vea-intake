@@ -16,8 +16,11 @@ use RuntimeException;
  * messages, and redacted from var_dump/print_r/var_export/serialize.
  *
  * Differences from vea-join:
- *  - keys of PLAN section 9: per-form ACCESS_AUD_<FORM> and MAIL_TO_<FORM>, upload and
- *    narrative limits (optional, with PLAN defaults); no Turnstile, no age range
+ *  - keys of PLAN section 9: per-form ACCESS_AUD_<FORM> and MAIL_TO_<FORM>; no Turnstile,
+ *    no age range
+ *  - no limits here: upload and narrative limits come from the form's content.json
+ *    (FormLimits), the same file the browser uses (PLAN 1.9, decision F); the old
+ *    UPLOAD_* and NARRATIVE_MAX_WORDS keys are ignored (OBSOLETE)
  *  - a blank or missing TEST_MODE means test mode: never production by accident
  *  - no form version here: it lives in the repo (app/forms/<form>/content.json)
  */
@@ -34,13 +37,8 @@ final class Config
         'MAIL_FROM', 'MAIL_REPLY_TO',
     ];
 
-    /** Optional positive integers and their defaults (PLAN sections 1, 9). */
-    private const LIMITS = [
-        'UPLOAD_MAX_FILES' => 5,
-        'UPLOAD_MAX_FILE_MB' => 10,
-        'UPLOAD_MAX_TOTAL_MB' => 25,
-        'NARRATIVE_MAX_WORDS' => 300,
-    ];
+    /** Keys that may still be in app.env but are ignored (limits live in content.json; form version too). */
+    public const OBSOLETE = ['UPLOAD_MAX_FILES', 'UPLOAD_MAX_FILE_MB', 'UPLOAD_MAX_TOTAL_MB', 'NARRATIVE_MAX_WORDS', 'FORM_VERSION_LEGAL'];
 
     /** @var array<string, string> non-secret values only */
     private readonly array $values;
@@ -106,13 +104,6 @@ final class Config
         if (!preg_match('~^https://[a-z0-9-]+\.cloudflareaccess\.com$~', rtrim($values['ACCESS_TEAM_DOMAIN'], '/'))) {
             throw new RuntimeException('app.env: ACCESS_TEAM_DOMAIN must be https://<team>.cloudflareaccess.com');
         }
-        foreach (array_keys(self::LIMITS) as $key) {
-            $v = $values[$key] ?? '';
-            if ($v !== '' && (!ctype_digit($v) || (int) $v < 1)) {
-                throw new RuntimeException("app.env: $key must be a positive integer");
-            }
-        }
-
         return new self($values);
     }
 
@@ -128,10 +119,6 @@ final class Config
     public function mailReplyTo(): string { return $this->values['MAIL_REPLY_TO']; }
     public function testMode(): bool { return self::testModeOf($this->values); }
     public function testMailTo(): string { return $this->values['TEST_MAIL_TO'] ?? ''; }
-    public function uploadMaxFiles(): int { return $this->limit('UPLOAD_MAX_FILES'); }
-    public function uploadMaxFileBytes(): int { return $this->limit('UPLOAD_MAX_FILE_MB') * 1024 * 1024; }
-    public function uploadMaxTotalBytes(): int { return $this->limit('UPLOAD_MAX_TOTAL_MB') * 1024 * 1024; }
-    public function narrativeMaxWords(): int { return $this->limit('NARRATIVE_MAX_WORDS'); }
 
     // --------------------------------------------------------- secrets
     public function graphTenantId(): string { return ($this->secret)('GRAPH_TENANT_ID'); }
@@ -156,13 +143,6 @@ final class Config
     }
 
     // --------------------------------------------------------- private
-    private function limit(string $key): int
-    {
-        $v = $this->values[$key] ?? '';
-
-        return $v === '' ? self::LIMITS[$key] : (int) $v;
-    }
-
     private static function formKey(string $form): string
     {
         if (!in_array($form, self::FORMS, true)) {
