@@ -11,7 +11,7 @@ use VeaIntake\Core\Config;
 final class ConfigTest extends TestCase
 {
     /** @return array<string, string> */
-    private static function valid(array $override = []): array
+    public static function valid(array $override = []): array
     {
         return array_merge([
             'APP_ENV' => 'production',

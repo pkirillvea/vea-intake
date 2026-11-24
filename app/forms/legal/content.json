@@ -179,6 +179,24 @@
             "choward1": "choward"
         }
     },
+    "email": {
+        "_note": "Server emails (PLAN section 12). Subjects use only the submission ID and the submitter handle. dateFormat is a PHP date() format in DISPLAY_TZ.",
+        "dateFormat": "F j, Y \\a\\t g:i A T",
+        "testNote": "TEST MODE: in production this message would have gone to {to}.",
+        "staff": {
+            "subject": "Legal Assistance Request - [#{id}] - {handle}",
+            "submitted": "Submitted",
+            "submittedBy": "Submitted by",
+            "member": "Member",
+            "local": "Local",
+            "attachments": "Full request attached (PDF) plus {count} supporting file(s)."
+        },
+        "confirmation": {
+            "subject": "Legal Assistance Request received - [#{id}]",
+            "body": "Your Legal Assistance Request for {member} ({local}) was received on {date}. Reference #{id}.",
+            "noReply": "This mailbox is not monitored. Please do not reply to this message."
+        }
+    },
     "limits": {
         "maxFiles": 5,
         "maxFileMb": 10,
