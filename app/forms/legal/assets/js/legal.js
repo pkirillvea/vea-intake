@@ -48,6 +48,7 @@
     data: null,            // form-data.json
     view: 'form',          // 'form' | 'review'
     files: [],             // File objects, in the order attached
+    fileErrors: new Map(), // File → reason code the server rejected it for (docs/PAYLOAD.md section 4)
     busy: false,
     dirty: false,
     touched: new Set(),
@@ -394,6 +395,8 @@
 
   /** Final check of the attached set (each file was already checked when added). */
   function filesProblem() {
+    const rejected = state.fileErrors.size;
+    if (rejected) return rejected === 1 ? U.rejectedFieldOne : fmt(U.rejectedFieldMany, { count: rejected });
     if (state.files.length > LIM.maxFiles) return fmt(U.limitCount, { max: LIM.maxFiles });
     if (totalBytes() > LIM.maxTotalMb * MB) return fmt(U.limitTotal, { max: LIM.maxTotalMb });
     return '';
@@ -430,12 +433,14 @@
     $('#files-status').textContent = messages.join(' ');
     $('#files').value = '';   // the input is only a picker; state.files is the list
     renderFiles();
+    if (!rejected.length && state.fileErrors.size) showError('files', filesProblem());   // files the server rejected are still listed
   }
 
   function removeFile(index) {
     const [f] = state.files.splice(index, 1);
-    $('#files-err').hidden = true;
-    $('#files').closest('.field').classList.remove('is-invalid');
+    state.fileErrors.delete(f);
+    showError('files', state.fileErrors.size ? filesProblem() : '');
+    refreshSummary();
     $('#files-status').textContent = fmt(U.removed, { name: f.name });
     renderFiles();
     const buttons = $$('#files-list button');
@@ -449,16 +454,58 @@
     state.files.forEach((f, i) => {
       const btn = el('button', { type: 'button', class: 'link-button', 'aria-label': fmt(U.removeLabel, { name: f.name }), text: U.remove });
       btn.addEventListener('click', () => removeFile(i));
-      list.append(el('li', { class: 'files__item' }, [
+      const reason = state.fileErrors.get(f);
+      const parts = [
         el('span', { class: 'files__name', text: f.name }),
         el('span', { class: 'files__size', text: sizeText(f.size) }),
         btn,
-      ]));
+      ];
+      const attrs = { class: 'files__item' };
+      if (reason !== undefined) {
+        // Server-rejected file: message next to it ("Error:" prefix + icon), focusable target of the review summary link.
+        Object.assign(attrs, { class: 'files__item is-invalid', id: `file-item-${i}`, tabindex: '-1' });
+        parts.push(el('p', { class: 'err files__err' }, [el('span', { class: 'err__prefix', text: STR.common.errorPrefix }), ` ${rejectedText(f, reason)}`]));
+      }
+      list.append(el('li', attrs, parts));
     });
     list.hidden = state.files.length === 0;
     $('#files-summary').textContent = fmt(U.summary, {
       count: state.files.length, max: LIM.maxFiles, total: (totalBytes() / MB).toFixed(1), maxTotal: LIM.maxTotalMb,
     });
+  }
+
+  /** Plain-language text for a server reason code (content.json uploads.rejected). */
+  function rejectedText(f, reason) {
+    const tpl = Object.prototype.hasOwnProperty.call(U.rejected, reason) && !reason.startsWith('_') ? U.rejected[reason] : U.rejected.unknown;
+    return fmt(tpl, { name: f.name, ext: extOf(f.name).toUpperCase(), max: LIM.maxFileMb, maxFiles: LIM.maxFiles, maxTotal: LIM.maxTotalMb });
+  }
+
+  /** The server's per-file detail [{index, reason}]: index = position in the files[] that were sent (state.files). */
+  function applyFileErrors(detail) {
+    state.fileErrors.clear();
+    (Array.isArray(detail) ? detail : []).forEach((d) => {
+      const f = d && Number.isInteger(d.index) ? state.files[d.index] : undefined;
+      if (f && typeof d.reason === 'string') state.fileErrors.set(f, d.reason);
+    });
+    renderFiles();
+    state.touched.add('files');
+    showError('files', filesProblem() || MSG.fileRejected);
+  }
+
+  /** Review-page summary item for rejected files; the link returns to the form and focuses the first one. */
+  function filesSummaryLink() {
+    const count = state.fileErrors.size;
+    const first = state.files.findIndex((f) => state.fileErrors.has(f));
+    const target = first >= 0 ? `file-item-${first}` : 'files';
+    let text = `${labelFor('files')}${STR.common.errorSeparator}${MSG.fileRejected}`;
+    if (count) text = count === 1 ? U.rejectedSummaryOne : fmt(U.rejectedSummaryMany, { count });
+    const a = el('a', { href: `#${target}`, text });
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      state.pendingFocus = target;   // set before back(): popstate is async
+      window.history.back();         // leaves the review entry; popstate shows the form
+    });
+    return a;
   }
 
   // ----------------------------------------------------------------- views
@@ -620,12 +667,19 @@
     if (code === 'invalid_input') {
       const fields = Array.isArray(json.fields) ? json.fields.filter((f) => typeof f === 'string') : [];
       if (fields.includes('formVersion') || fields.includes('dataVersion')) return MSG.submitStale;
-      const known = fields.filter((f) => RULES[f]);
+      const known = fields.filter((f) => RULES[f] && f !== 'files');
       known.forEach((f) => {
         state.touched.add(f);
-        showError(f, f === 'files' ? MSG.fileRejected : MSG.serverRejected);
+        showError(f, MSG.serverRejected);
       });
-      return known.length ? fmt(MSG.submitInvalid, { fields: known.map(labelFor).join('; ') }) : MSG.submitFailed;
+      const content = [];
+      if (known.length) content.push(fmt(MSG.submitInvalid, { fields: known.map(labelFor).join('; ') }));
+      if (fields.includes('files')) {
+        applyFileErrors(json.files);
+        if (content.length) content.push(' ');
+        content.push(filesSummaryLink());
+      }
+      return content.length ? content : MSG.submitFailed;
     }
     return MSG.submitFailed;
   }
@@ -712,6 +766,7 @@
   function wipe() {
     form.reset();
     state.files = [];
+    state.fileErrors.clear();
     state.touched.clear();
     state.narrativeOk = '';
     Object.keys(RULES).forEach((n) => showError(n, ''));

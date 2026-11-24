@@ -20,21 +20,28 @@ final class HttpError extends RuntimeException
     public const SEND_FAILED = 'send_failed';
     public const SERVER_ERROR = 'server_error';
 
-    /** @param list<string> $fields field names only (never values) */
+    /**
+     * @param list<string> $fields field names only (never values)
+     * @param list<array{index: int, reason: string}> $files per-file upload failures (index + fixed reason code; never a name)
+     */
     public function __construct(
         public readonly int $status,
         public readonly string $errorCode,
         public readonly array $fields = [],
+        public readonly array $files = [],
     ) {
         parent::__construct($errorCode, $status);
     }
 
-    /** @return array{ok: false, error: string, fields?: list<string>} */
+    /** @return array{ok: false, error: string, fields?: list<string>, files?: list<array{index: int, reason: string}>} */
     public function body(): array
     {
         $body = ['ok' => false, 'error' => $this->errorCode];
         if ($this->errorCode === self::INVALID_INPUT) {
             $body['fields'] = $this->fields;
+            if ($this->files !== []) {
+                $body['files'] = $this->files;
+            }
         }
 
         return $body;

@@ -95,8 +95,37 @@ extension's family (docx/xlsx: their OOXML type, `application/zip` or
 - pdf: `%PDF-` at offset 0. png/jpg: magic bytes + `getimagesize`.
 - csv/txt: no NUL bytes; UTF-8, or Windows-1252 without its unused bytes.
 
-Any failure rejects the whole submission: `invalid_input` with field `files` (the
-front end shows a file message on the Documents section). The browser checks count,
+Every file is checked. Any failure rejects the whole submission: `invalid_input`
+with field `files` **and per-file detail** — the position of the file in the
+`files[]` that were sent, plus a fixed reason code. The server **never echoes a
+file name**; the browser knows each file by its index:
+
+```json
+{"ok": false, "error": "invalid_input", "fields": ["files"],
+ "files": [{"index": 1, "reason": "macro"}, {"index": 4, "reason": "encrypted"}]}
+```
+
+| `reason` | Meaning |
+|---|---|
+| `mime_mismatch` | contents don't match the extension (renamed file, wrong magic bytes, old .doc as .docx, invalid text encoding) |
+| `macro` | VBA (`vbaProject.bin`, `vbaData.xml`, macro-enabled type) or ActiveX in a docx/xlsx |
+| `encrypted` | password-protected Office file, or encrypted ZIP entries |
+| `not_office` | docx/xlsx that is not a valid Office package |
+| `zip_limits` | > 2,000 entries or > 100 MB unpacked |
+| `nul_bytes` | NUL bytes in a csv/txt |
+| `too_large` | over 10 MB † |
+| `too_many` | beyond the 5th file † (each extra file is flagged) |
+| `total_too_large` | the file that takes the accepted ones over 25 MB † (left out of the running total) |
+| `empty` | 0 bytes |
+| `not_allowed` | extension not allowed (the browser normally prevents it) |
+| `upload_failed` | the upload did not arrive intact (PHP upload error) |
+
+The front end maps each code to plain text (`content.json` → `uploads.rejected`,
+unknown codes → `uploads.rejected.unknown`), shows it next to that file in the
+upload list, blocks Review until the file is removed, and the review page's error
+box says "Documents: N file(s) weren't accepted — see the Documents section" with a
+link that returns to the form and focuses the first rejected file. The log keeps
+the finer internal reason (`upload_rejected reason=…`). The browser checks count,
 size, total and extension before upload; the rest is server-only. Attachments are
 named `01_`…`05_` + the name reduced to `[A-Za-z0-9._-]` (≤ 100 chars); the
 original name appears (escaped) in the PDF.
@@ -108,7 +137,7 @@ Always JSON (`Content-Type: application/json; charset=utf-8`, `Cache-Control: no
 | Status | Body | Front end |
 |---|---|---|
 | `200` | `{"ok": true, "id": "YYYYMMDD-HHMM-XXXX"}` | Confirmation screen "Reference #id"; state cleared; history entry replaced. Also when only the submitter confirmation failed (logged) |
-| `400` | `{"ok": false, "error": "invalid_input", "fields": ["zip", "email"]}` | Field names only (never values). Fields mapped back to the form with an error each; list shown on the review page; data kept. `formVersion`/`dataVersion` → "page is out of date" |
+| `400` | `{"ok": false, "error": "invalid_input", "fields": ["zip", "email"]}`; with `"files": [{index, reason}]` when `fields` has `files` (§4) | Field names only (never values or file names). Fields mapped back to the form with an error each; list shown on the review page; data kept. `formVersion`/`dataVersion` → "page is out of date" |
 | `401` | `{"ok": false, "error": "unauthorized"}` | Session-expired message, data kept |
 | `405` | `{"ok": false, "error": "invalid_input", "fields": []}` | Not POST (should not happen) |
 | `413` | `{"ok": false, "error": "invalid_input", "fields": []}` (or nginx's own 413 page) | "The request is too large to send" |

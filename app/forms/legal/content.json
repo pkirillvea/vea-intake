@@ -145,7 +145,27 @@
         "empty": "{name} was not added: the file is empty.",
         "duplicate": "{name} was not added: it is already attached.",
         "limitCount": "Attach at most {max} files.",
-        "limitTotal": "The files must be at most {max} MB in total."
+        "limitTotal": "The files must be at most {max} MB in total.",
+        "rejectedFieldOne": "1 file wasn't accepted. Remove or replace the file marked below.",
+        "rejectedFieldMany": "{count} files weren't accepted. Remove or replace the files marked below.",
+        "rejectedSummaryOne": "Documents: 1 file wasn't accepted — see the Documents section",
+        "rejectedSummaryMany": "Documents: {count} files weren't accepted — see the Documents section",
+        "rejected": {
+            "_note": "Per-file messages for the server's reason codes (docs/PAYLOAD.md section 4). {name} file name, {ext} its extension, {max} MB per file, {maxFiles}, {maxTotal} MB in total.",
+            "mime_mismatch": "“{name}” isn't a valid {ext} file (its contents don't match its type). Remove it, or save it again in the correct format.",
+            "macro": "“{name}” contains macros, which aren't accepted. Save it as a regular .docx/.xlsx without macros.",
+            "encrypted": "“{name}” is password-protected. Remove the password and upload it again.",
+            "not_office": "“{name}” isn't a valid Word or Excel file. Open it in Word or Excel and save it again as .docx or .xlsx.",
+            "zip_limits": "“{name}” is too large or complex once unpacked to be accepted. Save a smaller copy, or save it as PDF.",
+            "nul_bytes": "“{name}” isn't a plain text file. Save it again as text (.txt) or CSV, or as PDF.",
+            "too_large": "“{name}” is larger than {max} MB. Remove it, or make it smaller.",
+            "too_many": "“{name}” is over the limit of {maxFiles} files. Remove it, or combine some files.",
+            "total_too_large": "“{name}” takes the files over {maxTotal} MB in total. Remove it, or make some files smaller.",
+            "empty": "“{name}” is empty. Remove it, or attach the right file.",
+            "not_allowed": "“{name}” isn't an allowed file type. Remove it, or save it as Word (.docx), Excel (.xlsx), CSV, PDF, PNG, JPG or text (.txt).",
+            "upload_failed": "“{name}” didn't upload completely. Remove it and attach it again.",
+            "unknown": "“{name}” wasn't accepted. Remove it, then submit again."
+        }
     },
     "review": {
         "title": "Review your request",

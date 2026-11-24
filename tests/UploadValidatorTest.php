@@ -41,18 +41,38 @@ final class UploadValidatorTest extends TestCase
     }
 
     /** @param list<array<string, mixed>> $rows */
-    /** @param string|list<string> $reason expected reason code (or any of several: libmagic may catch a file first) */
-    private function rejected(array $rows, string|array $reason, ?UploadValidator $v = null): void
+    /**
+     * One rejected file at $index: 400 with field "files" and per-file detail whose public code
+     * matches the internal reason(s) (libmagic may catch a file first), logged with the internal code.
+     * @param string|list<string> $reason internal reason code(s)
+     */
+    private function rejected(array $rows, string|array $reason, ?UploadValidator $v = null, int $index = 0): void
     {
         try {
             ($v ?? self::validator())->validate($rows);
             self::fail('accepted (' . implode('|', (array) $reason) . ')');
         } catch (HttpError $e) {
             self::assertSame(400, $e->status);
-            self::assertSame(['ok' => false, 'error' => 'invalid_input', 'fields' => ['files']], $e->body());
+            $body = $e->body();
+            self::assertSame(['ok', 'error', 'fields', 'files'], array_keys($body));
+            self::assertSame(['invalid_input', ['files']], [$body['error'], $body['fields']]);
+            self::assertCount(1, $body['files']);
+            self::assertSame($index, $body['files'][0]['index']);
+            self::assertContains($body['files'][0]['reason'], array_map(static fn (string $r): string => UploadValidator::PUBLIC_REASON[$r], (array) $reason));
         }
         $lines = array_map(static fn (string $r): string => "vea-intake event=upload_rejected status=400 reason=$r fields=files", (array) $reason);
         self::assertContains(end($this->log), $lines);
+    }
+
+    /** @return list<array{index: int, reason: string}> */
+    private function detail(array $rows): array
+    {
+        try {
+            self::validator()->validate($rows);
+        } catch (HttpError $e) {
+            return $e->body()['files'] ?? [];
+        }
+        self::fail('accepted');
     }
 
     public function testAllowedTypesPass(): void
@@ -115,7 +135,11 @@ final class UploadValidatorTest extends TestCase
 
     public function testEncryptedOfficeFile(): void
     {
-        $this->rejected([$this->fx->row($this->fx->encryptedOffice('locked.docx'))], 'mime_mismatch');
+        $this->rejected([$this->fx->row($this->fx->encryptedOffice('locked.docx'))], 'office_encrypted');
+        self::assertSame([['index' => 0, 'reason' => 'encrypted']], $this->detail([$this->fx->row('locked.docx')]));
+        // an old-format OLE file without an EncryptedPackage stream is just the wrong type
+        $this->fx->write('old.docx', str_pad("\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 4096, "\0"));
+        $this->rejected([$this->fx->row('old.docx')], 'mime_mismatch');
     }
 
     public function testZipWithEncryptedEntries(): void
@@ -125,6 +149,7 @@ final class UploadValidatorTest extends TestCase
             $z->setEncryptionName('word/document.xml', \ZipArchive::EM_AES_256, 'fake-password');
         });
         $this->rejected([$fx->row($name)], 'zip_encrypted');
+        self::assertSame('encrypted', UploadValidator::PUBLIC_REASON['zip_encrypted']);
     }
 
     public function testTinyZipBomb(): void
@@ -171,7 +196,8 @@ final class UploadValidatorTest extends TestCase
         for ($i = 1; $i <= 6; $i++) {
             $rows[] = $fx->row($fx->pdf("f$i.pdf"));
         }
-        $this->rejected($rows, 'too_many');
+        $this->rejected($rows, 'too_many', null, 5);
+        self::assertSame([['index' => 5, 'reason' => 'too_many']], $this->detail($rows), 'only the 6th file is flagged');
     }
 
     public function testOverTenMegabytes(): void
@@ -188,7 +214,7 @@ final class UploadValidatorTest extends TestCase
         $rows = [$fx->row($fx->bigPdf('a.pdf', 9 * self::MB)), $fx->row($fx->bigPdf('b.pdf', 9 * self::MB)), $fx->row($fx->bigPdf('c.pdf', 7 * self::MB))];
         self::assertCount(3, self::validator()->validate($rows), 'exactly 25 MB is fine');
         $rows[] = $fx->row($fx->pdf('d.pdf'));
-        $this->rejected($rows, 'total_too_big');
+        $this->rejected($rows, 'total_too_big', null, 3);
     }
 
     public function testNulInCsvAndBadEncoding(): void
@@ -221,6 +247,41 @@ final class UploadValidatorTest extends TestCase
     {
         $this->rejected([$this->fx->row($this->fx->exe('Secret Member Name.pdf'))], 'mime_mismatch');
         self::assertStringNotContainsString('Secret', implode("\n", $this->log));
+    }
+
+    public function testEveryFileIsCheckedAndReportedByIndexOnly(): void
+    {
+        $fx = $this->fx;
+        $rows = [
+            $fx->row($fx->pdf('fine.pdf')),
+            $fx->row($fx->exe('Secret Member Name.pdf')),
+            $fx->row($fx->ooxml('Macro Plan.docx', 'docx', ['word/vbaProject.bin' => 'x'])),
+            $fx->row($fx->png()),
+            $fx->row($fx->write('blank.txt', '')),
+        ];
+        try {
+            self::validator()->validate($rows);
+            self::fail('accepted');
+        } catch (HttpError $e) {
+            self::assertSame(['ok' => false, 'error' => 'invalid_input', 'fields' => ['files'], 'files' => [
+                ['index' => 1, 'reason' => 'mime_mismatch'],
+                ['index' => 2, 'reason' => 'macro'],
+                ['index' => 4, 'reason' => 'empty'],
+            ]], $e->body());
+            $json = json_encode($e->body());
+            foreach (['Secret', 'Macro Plan', 'fine', 'blank', '.pdf', '.docx'] as $needle) {
+                self::assertStringNotContainsString($needle, $json, 'never a file name');
+            }
+        }
+        self::assertCount(3, $this->log, 'one log line per rejected file');
+    }
+
+    public function testPublicReasonCodes(): void
+    {
+        $codes = array_values(array_unique(UploadValidator::PUBLIC_REASON));
+        sort($codes);
+        self::assertSame(['empty', 'encrypted', 'macro', 'mime_mismatch', 'not_allowed', 'not_office', 'nul_bytes', 'too_large', 'too_many',
+            'total_too_large', 'upload_failed', 'zip_limits'], $codes);
     }
 
     public function testSafeNames(): void

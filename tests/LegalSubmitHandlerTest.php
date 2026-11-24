@@ -202,8 +202,11 @@ final class LegalSubmitHandlerTest extends TestCase
 
     public function testRejectedFileIs400Files(): void
     {
-        [$status, $body] = $this->submit(Fx::payload(), [$this->fx->row($this->fx->exe('Secret Name.pdf'))], self::graphOk());
-        self::assertSame([400, ['ok' => false, 'error' => 'invalid_input', 'fields' => ['files']]], [$status, $body]);
+        $files = [$this->fx->row($this->fx->pdf('ok.pdf')), $this->fx->row($this->fx->exe('Secret Name.pdf'))];
+        [$status, $body, $http] = $this->submit(Fx::payload(), $files, self::graphOk());
+        self::assertSame([400, ['ok' => false, 'error' => 'invalid_input', 'fields' => ['files'], 'files' => [['index' => 1, 'reason' => 'mime_mismatch']]]], [$status, $body]);
+        self::assertStringNotContainsString('Secret', (string) json_encode($body));
+        self::assertCount(0, $http->requestsTo(self::LOGIN), 'nothing sent');
     }
 
     public function testUnauthorizedAndUnavailable(): void

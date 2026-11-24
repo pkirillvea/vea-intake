@@ -226,6 +226,11 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 }
 .files__name { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; color: var(--text); font-weight: 600; }
 .files__size { color: var(--muted); font-size: 0.8125rem; }
+/* A file the server rejected: heavier left border + "Error:" message under it (never colour alone) */
+.files__item.is-invalid { border-left: 4px solid var(--error); }
+.files__item:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
+.files__err { display: block; flex: 1 1 100%; margin: 0.125rem 0 0; }   /* inline: icon, "Error:", message flow as one paragraph */
+.files__err::before { margin-right: 0.375rem; }
 
 .link-button {
   min-height: 1.5rem; padding: 0.125rem 0.25rem;

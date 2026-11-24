@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace VeaIntake\Core;
 
 /**
- * Upload checks (docs/PLAN.md section 4; docs/PAYLOAD.md section 4). Any failure
- * rejects the whole submission: 400 invalid_input with field "files", logged as
- * upload_rejected with a reason code only (never a file name).
+ * Upload checks (docs/PLAN.md section 4; docs/PAYLOAD.md section 4). Every file is
+ * checked; any failure rejects the whole submission: 400 invalid_input, field
+ * "files", plus per-file detail [{index, reason}] with a public reason code
+ * (PUBLIC_REASON; the browser maps it to text and knows the file by its index).
+ * Never a file name. Logged as upload_rejected with the internal reason code.
  *
  * - count <= max; UPLOAD_ERR_OK and is_uploaded_file; size measured on disk,
  *   1 byte .. max per file, total <= max.
@@ -57,6 +59,35 @@ final class UploadValidator
 
     private const OOXML_MAIN = ['docx' => 'word/document.xml', 'xlsx' => 'xl/workbook.xml'];
 
+    /** Internal reason (logged) => public reason code (in the 400 response; docs/PAYLOAD.md section 4). */
+    public const PUBLIC_REASON = [
+        'too_many' => 'too_many',
+        'too_big' => 'too_large',
+        'total_too_big' => 'total_too_large',
+        'empty' => 'empty',
+        'upload_error' => 'upload_failed',
+        'not_uploaded' => 'upload_failed',
+        'extension' => 'not_allowed',
+        'mime_mismatch' => 'mime_mismatch',
+        'pdf_magic' => 'mime_mismatch',
+        'image_magic' => 'mime_mismatch',
+        'image_invalid' => 'mime_mismatch',
+        'text_encoding' => 'mime_mismatch',
+        'office_encrypted' => 'encrypted',
+        'zip_encrypted' => 'encrypted',
+        'zip_magic' => 'not_office',
+        'zip_invalid' => 'not_office',
+        'ooxml_structure' => 'not_office',
+        'zip_entries' => 'zip_limits',
+        'zip_bomb' => 'zip_limits',
+        'macro' => 'macro',
+        'text_nul' => 'nul_bytes',
+    ];
+
+    /** finfo types of OLE compound files: encrypted (password-protected) Office files, or old .doc/.xls. */
+    private const OLE_MIME = ['application/x-ole-storage', 'application/CDFV2', 'application/CDFV2-encrypted', 'application/encrypted',
+        'application/vnd.ms-office', 'application/msword', 'application/vnd.ms-excel'];
+
     private readonly \Closure $isUploaded;
 
     /** @param list<string> $extensions content.json limits.extensions */
@@ -82,68 +113,105 @@ final class UploadValidator
      */
     public function validate(array $files): array
     {
-        if (count($files) > $this->maxFiles) {
-            $this->reject('too_many');
-        }
-        $out = [];
-        $total = 0;
+        $errors = [];   // index => internal reason
+        $ok = [];       // index => UploadedFile
         foreach (array_values($files) as $i => $f) {
-            $error = (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE);
-            if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-                $this->reject('too_big');
+            if ($i >= $this->maxFiles) {
+                $errors[$i] = 'too_many';
+                continue;
             }
-            if ($error !== UPLOAD_ERR_OK) {
-                $this->reject('upload_error');
+            $result = $this->check($f, $i);
+            if (is_string($result)) {
+                $errors[$i] = $result;
+            } else {
+                $ok[$i] = $result;
             }
-            $tmp = (string) ($f['tmp_name'] ?? '');
-            if ($tmp === '' || !($this->isUploaded)($tmp) || !is_file($tmp)) {
-                $this->reject('not_uploaded');
+        }
+        // Total: in order, a file that would take the accepted ones over the limit is flagged
+        // (and left out of the running total, so removing it is enough).
+        $total = 0;
+        foreach ($ok as $i => $file) {
+            if ($total + $file->size > $this->maxTotalBytes) {
+                $errors[$i] = 'total_too_big';
+                unset($ok[$i]);
+                continue;
             }
-            clearstatcache(true, $tmp);
-            $size = (int) filesize($tmp);
-            if ($size < 1) {
-                $this->reject('empty');
+            $total += $file->size;
+        }
+        if ($errors !== []) {
+            ksort($errors);
+            $detail = [];
+            foreach ($errors as $i => $reason) {
+                Log::event('upload_rejected', ['status' => 400, 'reason' => $reason, 'fields' => 'files']);
+                $detail[] = ['index' => $i, 'reason' => self::PUBLIC_REASON[$reason]];
             }
-            if ($size > $this->maxFileBytes) {
-                $this->reject('too_big');
-            }
-            $total += $size;
-            if ($total > $this->maxTotalBytes) {
-                $this->reject('total_too_big');
-            }
-
-            $original = self::originalName((string) ($f['name'] ?? ''));
-            $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
-            if (!in_array($ext, $this->extensions, true) || !isset(self::MIME[$ext])) {
-                $this->reject('extension');
-            }
-            $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($tmp);
-            if (!in_array($mime, self::MIME[$ext], true)) {
-                $this->reject('mime_mismatch');
-            }
-            $problem = match ($ext) {
-                'docx', 'xlsx' => self::checkOoxml($tmp, self::OOXML_MAIN[$ext]),
-                'pdf' => self::head($tmp, 5) === '%PDF-' ? null : 'pdf_magic',
-                'png' => self::checkImage($tmp, "\x89PNG\r\n\x1a\n", IMAGETYPE_PNG),
-                'jpg', 'jpeg' => self::checkImage($tmp, "\xFF\xD8\xFF", IMAGETYPE_JPEG),
-                'csv', 'txt' => self::checkText($tmp),
-            };
-            if ($problem !== null) {
-                $this->reject($problem);
-            }
-
-            $out[] = new UploadedFile(
-                originalName: $original,
-                safeName: self::safeName($original, $i + 1),
-                size: $size,
-                extension: $ext,
-                mime: self::CONTENT_TYPE[$ext],
-                sha256: (string) hash_file('sha256', $tmp),
-                tmpPath: $tmp,
-            );
+            throw new HttpError(400, HttpError::INVALID_INPUT, ['files'], $detail);
         }
 
-        return $out;
+        return array_values($ok);
+    }
+
+    /** @return UploadedFile|string the file, or the internal reason it failed */
+    private function check(array $f, int $i): UploadedFile|string
+    {
+        $error = (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+            return 'too_big';
+        }
+        if ($error !== UPLOAD_ERR_OK) {
+            return 'upload_error';
+        }
+        $tmp = (string) ($f['tmp_name'] ?? '');
+        if ($tmp === '' || !($this->isUploaded)($tmp) || !is_file($tmp)) {
+            return 'not_uploaded';
+        }
+        clearstatcache(true, $tmp);
+        $size = (int) filesize($tmp);
+        if ($size < 1) {
+            return 'empty';
+        }
+        if ($size > $this->maxFileBytes) {
+            return 'too_big';
+        }
+
+        $original = self::originalName((string) ($f['name'] ?? ''));
+        $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+        if (!in_array($ext, $this->extensions, true) || !isset(self::MIME[$ext])) {
+            return 'extension';
+        }
+        $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($tmp);
+        if (!in_array($mime, self::MIME[$ext], true)) {
+            return isset(self::OOXML_MAIN[$ext]) && in_array($mime, self::OLE_MIME, true) && self::isEncryptedOle($tmp)
+                ? 'office_encrypted' : 'mime_mismatch';
+        }
+        $problem = match ($ext) {
+            'docx', 'xlsx' => self::checkOoxml($tmp, self::OOXML_MAIN[$ext]),
+            'pdf' => self::head($tmp, 5) === '%PDF-' ? null : 'pdf_magic',
+            'png' => self::checkImage($tmp, "\x89PNG\r\n\x1a\n", IMAGETYPE_PNG),
+            'jpg', 'jpeg' => self::checkImage($tmp, "\xFF\xD8\xFF", IMAGETYPE_JPEG),
+            'csv', 'txt' => self::checkText($tmp),
+        };
+        if ($problem !== null) {
+            return $problem;
+        }
+
+        return new UploadedFile(
+            originalName: $original,
+            safeName: self::safeName($original, $i + 1),
+            size: $size,
+            extension: $ext,
+            mime: self::CONTENT_TYPE[$ext],
+            sha256: (string) hash_file('sha256', $tmp),
+            tmpPath: $tmp,
+        );
+    }
+
+    /** A password-protected Office file is an OLE container with an "EncryptedPackage" stream. */
+    private static function isEncryptedOle(string $path): bool
+    {
+        $s = (string) file_get_contents($path);
+
+        return str_contains($s, mb_convert_encoding('EncryptedPackage', 'UTF-16LE', 'UTF-8'));
     }
 
     /** "01_" .. "05_" + the name reduced to [A-Za-z0-9._-], at most 100 characters, extension kept. */
@@ -272,9 +340,4 @@ final class UploadValidator
         return $s;
     }
 
-    private function reject(string $reason): never
-    {
-        Log::event('upload_rejected', ['status' => 400, 'reason' => $reason, 'fields' => 'files']);
-        throw new HttpError(400, HttpError::INVALID_INPUT, ['files']);
-    }
 }
