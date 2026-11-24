@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace VeaIntake\Core;
 
-/** HTTPS-only curl client. Copied from vea-join; request() replaces post(). */
+/** HTTPS-only curl client. Copied from vea-join; request() replaces post(); response headers captured. */
 final class CurlHttpClient implements HttpClient
 {
     public function request(string $method, string $url, array $headers, #[\SensitiveParameter] ?string $body, int $timeoutSeconds): HttpResponse
@@ -20,7 +20,16 @@ final class CurlHttpClient implements HttpClient
         foreach ($headers as $name => $value) {
             $lines[] = "$name: $value";
         }
+        $responseHeaders = [];
         $opts = [
+            CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$responseHeaders): int {
+                $parts = explode(':', $line, 2);
+                if (count($parts) === 2) {
+                    $responseHeaders[strtolower(trim($parts[0]))] = trim($parts[1]);
+                }
+
+                return strlen($line);
+            },
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => $lines,
             CURLOPT_RETURNTRANSFER => true,
@@ -40,6 +49,6 @@ final class CurlHttpClient implements HttpClient
         $status = $response === false ? 0 : (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
 
-        return new HttpResponse($status, $response === false ? '' : (string) $response);
+        return new HttpResponse($status, $response === false ? '' : (string) $response, $response === false ? [] : $responseHeaders);
     }
 }

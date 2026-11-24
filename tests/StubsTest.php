@@ -10,7 +10,6 @@ use VeaIntake\Core\AccessAuth;
 use VeaIntake\Core\AccessIdentity;
 use VeaIntake\Core\Audit;
 use VeaIntake\Core\FormData;
-use VeaIntake\Core\TmpfsGuard;
 use VeaIntake\Core\UploadValidator;
 use VeaIntake\Forms\Legal\LegalValidator;
 use VeaIntake\Tests\Support\MockHttpClient;
@@ -26,7 +25,6 @@ final class StubsTest extends TestCase
         yield 'UploadValidator::validate' => [fn () => (new UploadValidator(5, 1, 1))->validate([])];
         yield 'UploadValidator::safeName' => [fn () => UploadValidator::safeName('a.pdf', 1)];
         yield 'Audit::build' => [fn () => Audit::build('id', $who, [], [], [], 'v', new \DateTimeImmutable())];
-        yield 'TmpfsGuard::isReady' => [fn () => (new TmpfsGuard())->isReady()];
         yield 'LegalValidator::validate' => [fn () => (new LegalValidator(self::formData(), 'v', 300))->validate([])];
     }
 

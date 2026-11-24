@@ -8,15 +8,16 @@ use VeaIntake\Core\HttpClient;
 use VeaIntake\Core\HttpResponse;
 
 /**
- * Records requests and answers from a queue of [urlPrefix => HttpResponse] rules.
- * Copied from vea-join's MockHttpClient; request() replaces post().
+ * Records requests and answers from a queue of [urlPrefix, HttpResponse, ?method] rules,
+ * matched in order and used once each. Copied from vea-join's MockHttpClient;
+ * request() replaces post(), and a rule may name the HTTP method.
  */
 final class MockHttpClient implements HttpClient
 {
     /** @var list<array{method: string, url: string, headers: array<string, string>, body: ?string, timeout: int}> */
     public array $requests = [];
 
-    /** @param list<array{0: string, 1: HttpResponse}> $responses matched in order by URL prefix */
+    /** @param list<array{0: string, 1: HttpResponse, 2?: string}> $responses matched in order by URL prefix (and method) */
     public function __construct(private array $responses = [])
     {
     }
@@ -24,8 +25,9 @@ final class MockHttpClient implements HttpClient
     public function request(string $method, string $url, array $headers, ?string $body, int $timeoutSeconds): HttpResponse
     {
         $this->requests[] = ['method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body, 'timeout' => $timeoutSeconds];
-        foreach ($this->responses as $i => [$prefix, $response]) {
-            if (str_starts_with($url, $prefix)) {
+        foreach ($this->responses as $i => $rule) {
+            [$prefix, $response] = $rule;
+            if (str_starts_with($url, $prefix) && (!isset($rule[2]) || $rule[2] === $method)) {
                 unset($this->responses[$i]);
                 $this->responses = array_values($this->responses);
 
@@ -47,6 +49,18 @@ final class MockHttpClient implements HttpClient
         }
 
         return $out;
+    }
+
+    /** @return list<array{method: string, url: string, headers: array<string, string>, body: ?string, timeout: int}> */
+    public function requestsTo(string $prefix, ?string $method = null): array
+    {
+        return array_values(array_filter($this->requests, static fn (array $r): bool =>
+            str_starts_with($r['url'], $prefix) && ($method === null || $r['method'] === $method)));
+    }
+
+    public function remaining(): int
+    {
+        return count($this->responses);
     }
 
     public static function graphOk(int $sends = 2): self
