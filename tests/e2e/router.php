@@ -8,8 +8,8 @@
  *   with img-src set to 'self' (the state after ~/scripts/phase-csp.sh), so the tests
  *   prove the page needs neither data: nor blob:.
  * - /legal → 301 /legal/; /legal/ → index.html; static files under /legal/ only;
- *   ping.php and submit.php do not exist yet (Prompt 4) → 404, like nginx today.
- *   The tests mock them with page.route() where needed.
+ *   ping.php and submit.php are never executed here (they need app.env, the JWT and
+ *   the tmpfs) → 404; tests mock their answers with page.route() (docs/PAYLOAD.md).
  */
 
 declare(strict_types=1);

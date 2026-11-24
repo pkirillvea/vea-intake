@@ -387,7 +387,7 @@ test('submit contract (mocked): expired session keeps data; success shows the re
 
   let sent = null;
   await page.unroute('**/legal/ping.php');
-  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":"Staff Member"}' }));
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":null}' }));
   await page.route('**/legal/submit.php', (r) => {
     sent = r.request();
     r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"id":"20261123-1200-TEST"}' });
@@ -395,7 +395,7 @@ test('submit contract (mocked): expired session keeps data; success shows the re
   await page.click('#submit-btn');
   await expect(page.locator('#confirmation')).toBeVisible();
   await expect(page.locator('#confirmation-ref')).toHaveText(fmt(C.confirmation.reference, { id: '20261123-1200-TEST' }));
-  await expect(page.locator('#signed-in')).toHaveText(fmt(C.page.signedInAs, { name: 'Staff Member', email: 'staff@example.org' }));
+  await expect(page.locator('#signed-in')).toHaveText(fmt(C.page.signedInAs, { email: 'staff@example.org' }));
 
   // the request matches docs/PAYLOAD.md: multipart with a JSON "payload" field
   expect(sent.method()).toBe('POST');
@@ -414,11 +414,34 @@ test('server field errors are mapped back and the answers are kept', async ({ pa
   await open(page);
   await fillValid(page);
   await page.click('#review-btn');
-  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 204, body: '' }));
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":null}' }));
   await page.route('**/legal/submit.php', (r) => r.fulfill({ status: 400, contentType: 'application/json', body: '{"ok":false,"error":"invalid_input","fields":["zip","email"]}' }));
   await page.click('#submit-btn');
   await expect(page.locator('#submit-error')).toContainText(C.fields.email.label);
   await page.click('#back-btn');
   await expect(page.locator('#email-err')).toContainText(C.messages.serverRejected);
   await expect(page.locator('#email')).toHaveValue('testy@example.org');
+});
+
+test('ping at page load shows "Signed in as <email>"; 503 unavailable and rejected files keep the answers', async ({ page }) => {
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":null}' }));
+  await open(page);
+  await expect(page.locator('#signed-in')).toHaveText(fmt(C.page.signedInAs, { email: 'staff@example.org' }));
+  await fillValid(page);
+  await page.setInputFiles('#files', [{ name: 'evidence.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') }]);
+  await page.click('#review-btn');
+
+  await page.unroute('**/legal/ping.php');
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{"ok":false,"error":"unavailable"}' }));
+  await page.click('#submit-btn');
+  await expect(page.locator('#submit-error')).toContainText(C.messages.submitUnavailable);
+
+  await page.unroute('**/legal/ping.php');
+  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":null}' }));
+  await page.route('**/legal/submit.php', (r) => r.fulfill({ status: 400, contentType: 'application/json', body: '{"ok":false,"error":"invalid_input","fields":["files"]}' }));
+  await page.click('#submit-btn');
+  await expect(page.locator('#submit-error')).toContainText(C.fields.documents.label);
+  await page.click('#back-btn');
+  await expect(page.locator('#files-err')).toContainText(C.messages.fileRejected);
+  await expect(page.locator('#firstName')).toHaveValue('Testy');
 });

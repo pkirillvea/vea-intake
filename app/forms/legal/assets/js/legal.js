@@ -623,7 +623,7 @@
       const known = fields.filter((f) => RULES[f]);
       known.forEach((f) => {
         state.touched.add(f);
-        showError(f, MSG.serverRejected);
+        showError(f, f === 'files' ? MSG.fileRejected : MSG.serverRejected);
       });
       return known.length ? fmt(MSG.submitInvalid, { fields: known.map(labelFor).join('; ') }) : MSG.submitFailed;
     }
@@ -638,7 +638,6 @@
       });
       if (res.type === 'opaqueredirect' || res.status === 401) return { result: 'expired' };
       if (res.status === 404) return { result: 'disabled' };
-      if (res.status === 204) return { result: 'ok' };
       if (res.status === 200) {
         let json = null;
         try { json = await res.json(); } catch (_) { json = null; }
@@ -653,7 +652,7 @@
   function showIdentity(identity) {
     if (!identity || typeof identity.email !== 'string' || identity.email === '') return;
     const p = $('#signed-in');
-    p.textContent = fmt(STR.page.signedInAs, { name: typeof identity.name === 'string' && identity.name ? identity.name : identity.email, email: identity.email });
+    p.textContent = fmt(STR.page.signedInAs, { email: identity.email });   // Access tokens carry no display name
     p.hidden = false;
   }
 

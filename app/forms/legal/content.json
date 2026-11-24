@@ -13,7 +13,7 @@
         "noscript": "This form needs JavaScript. Turn it on in your browser and reload the page.",
         "loading": "Loading the form…",
         "requiredNote": "Fields marked * are required.",
-        "signedInAs": "Signed in as {name} ({email})"
+        "signedInAs": "Signed in as {email}"
     },
     "banner": {
         "privilege": "PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL"
@@ -125,7 +125,8 @@
         "submitStale": "This page is out of date. Copy anything you need, then reload the page.",
         "submitTooLarge": "The request is too large to send (at most 25 MB of files in total).",
         "submitUnavailable": "Submissions are temporarily unavailable. Your answers are kept; please try again later.",
-        "serverRejected": "This value was not accepted. Check it, then submit again."
+        "serverRejected": "This value was not accepted. Check it, then submit again.",
+        "fileRejected": "A file was not accepted: its content does not match its type, it is damaged, encrypted or contains macros. Remove it, then submit again."
     },
     "uploads": {
         "choose": "Add files",

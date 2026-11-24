@@ -20,8 +20,6 @@ final class StubsTest extends TestCase
     public static function stubs(): iterable
     {
         $who = new AccessIdentity('a@example.org', 'A B', 'sub');
-        yield 'AccessAuth::verify' => [fn () => (new AccessAuth(new MockHttpClient(), 'https://t.cloudflareaccess.com', 'aud'))->verify([])];
-        yield 'AccessAuth::handle' => [fn () => AccessAuth::handle('a@example.org', 'A B')];
         yield 'UploadValidator::validate' => [fn () => (new UploadValidator(5, 1, 1))->validate([])];
         yield 'UploadValidator::safeName' => [fn () => UploadValidator::safeName('a.pdf', 1)];
         yield 'Audit::build' => [fn () => Audit::build('id', $who, [], [], [], 'v', new \DateTimeImmutable())];
