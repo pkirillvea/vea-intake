@@ -126,7 +126,7 @@ final class LegalSubmitHandler
 
             $staff = $s->mailer->send(
                 $staffTo,
-                Template::fmt((string) $E['staff']['subject'], ['id' => $id, 'handle' => $handle]),
+                Template::fmt((string) $E['staff']['subject'], ['phrase' => $E['staff']['subjectPhrase'], 'id' => $id, 'handle' => $handle]),
                 Template::render(self::FORM, 'email_staff', [
                     'id' => $id, 'submitted' => $now->format((string) $E['dateFormat']), 'submittedBy' => $who->email,
                     'member' => $member, 'local' => $local, 'count' => count($uploads), 'testTo' => $test ? $staffTo : null, 'c' => $c,

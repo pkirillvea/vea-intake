@@ -28,7 +28,7 @@ final class AuditTest extends TestCase
         self::assertSame('Agent/1.0', $a['userAgent'], 'control characters removed');
         self::assertSame(['2026.11-1', 'abc'], [$a['formVersion'], $a['dataVersion']]);
         self::assertSame(Validator::dataHash($data), $a['sha256']);
-        self::assertSame([['name' => 'Letter.pdf', 'attachedAs' => '01_Letter.pdf', 'size' => 1234, 'type' => 'application/pdf', 'extension' => 'pdf', 'sha256' => str_repeat('a', 64)]], $a['files']);
+        self::assertSame([['name' => 'Letter.pdf', 'attachedAs' => '01_Letter.pdf', 'size' => 1234, 'type' => 'application/pdf', 'extension' => 'pdf', 'sha256' => str_repeat('a', 64), 'passwordProtected' => false]], $a['files']);
         self::assertArrayNotHasKey('signature', $a);
     }
 

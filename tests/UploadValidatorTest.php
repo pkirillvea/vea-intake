@@ -107,6 +107,19 @@ final class UploadValidatorTest extends TestCase
         self::assertCount(1, self::validator()->validate([$fx->row($fx->ooxml('embed.docx', 'docx', ['word/embeddings/oleObject1.bin' => 'fake ole']))]));
     }
 
+    public function testPasswordProtectedPdfIsAcceptedAndFlagged(): void
+    {
+        $fx = $this->fx;
+        $files = self::validator()->validate([$fx->row($fx->encryptedPdf('locked.pdf')), $fx->row($fx->pdf('open.pdf'))]);
+        self::assertStringContainsString('/Encrypt', (string) file_get_contents($fx->path('locked.pdf')), 'fixture really is encrypted');
+        self::assertSame([true, false], [$files[0]->passwordProtected, $files[1]->passwordProtected]);
+
+        $fx->write('xref-stream.pdf', "%PDF-1.7\n5 0 obj\n<< /Type /XRef /Size 6 /Root 1 0 R /Encrypt << /Filter /Standard /V 2 >> >>\nstream\nendstream\nendobj\n%%EOF\n");
+        self::assertTrue(UploadValidator::isEncryptedPdf($fx->path('xref-stream.pdf')), 'inline dictionary in an xref stream');
+        $fx->write('mentions.pdf', "%PDF-1.4\n% the word Encrypt in a comment, no dictionary\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+        self::assertFalse(UploadValidator::isEncryptedPdf($fx->path('mentions.pdf')));
+    }
+
     public function testRenamedExeAsPdf(): void
     {
         $this->rejected([$this->fx->row($this->fx->exe('invoice.pdf'))], 'mime_mismatch');

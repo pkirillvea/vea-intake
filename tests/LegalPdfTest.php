@@ -85,6 +85,21 @@ final class LegalPdfTest extends TestCase
             'answers' => LegalAnswers::sections($d, $c, FormLimits::fromContent($c), Fx::formData()->notListed()), 'files' => $audit['files']];
     }
 
+    public function testPasswordProtectedPdfIsMarkedInTheAttachmentsTable(): void
+    {
+        $c = Template::content('legal');
+        $v = self::vars();
+        $files = [
+            new UploadedFile('Locked statement.pdf', '01_Locked_statement.pdf', 4096, 'pdf', 'application/pdf', str_repeat('a', 64), '/x', true),
+            new UploadedFile('Open letter.pdf', '02_Open_letter.pdf', 4096, 'pdf', 'application/pdf', str_repeat('b', 64), '/y'),
+        ];
+        $audit = Audit::build($v['id'], new AccessIdentity('staff@example.org'), [], $v['data'], $files, Fx::now(), 'America/New_York', 'n/a');
+        $html = Template::render('legal', 'pdf', ['audit' => $audit, 'files' => $audit['files']] + $v);
+        $flag = '(' . $c['pdf']['attachments']['passwordProtected'] . ')';
+        self::assertStringContainsString('Locked statement.pdf <span class="flag">' . $flag . '</span>', $html);
+        self::assertSame(1, substr_count($html, $flag), 'only the protected file');
+    }
+
     public function testTemplateEscapesAndKeepsLineBreaks(): void
     {
         $html = Template::render('legal', 'pdf', self::vars(['narrative' => "<script>alert(1)</script>\n\nSecond", 'firstName' => 'A&B']));

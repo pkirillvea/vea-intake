@@ -23,7 +23,7 @@ final class Audit
      * @param list<UploadedFile> $files
      * @return array{id: string, submitted: string, submittedBy: string, ip: string, location: string, userAgent: string,
      *               formVersion: string, dataVersion: string, sha256: string,
-     *               files: list<array{name: string, attachedAs: string, size: int, type: string, extension: string, sha256: string}>}
+     *               files: list<array{name: string, attachedAs: string, size: int, type: string, extension: string, sha256: string, passwordProtected: bool}>}
      */
     public static function build(string $id, AccessIdentity $who, array $server, array $data, array $files, DateTimeImmutable $now, string $tz, string $notAvailable): array
     {
@@ -39,7 +39,7 @@ final class Audit
             'sha256' => Validator::dataHash($data),
             'files' => array_map(static fn (UploadedFile $f): array => [
                 'name' => $f->originalName, 'attachedAs' => $f->safeName, 'size' => $f->size, 'type' => $f->mime,
-                'extension' => $f->extension, 'sha256' => $f->sha256,
+                'extension' => $f->extension, 'sha256' => $f->sha256, 'passwordProtected' => $f->passwordProtected,
             ], $files),
         ];
     }

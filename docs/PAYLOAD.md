@@ -92,7 +92,10 @@ extension's family (docx/xlsx: their OOXML type, `application/zip` or
   ≤ 2,000 entries, ≤ 100 MB uncompressed; no encrypted entries; **no VBA**
   (`vbaProject.bin`, `vbaData.xml`, macroEnabled content types) and **no ActiveX**;
   embedded OLE objects allowed. Encrypted Office files are OLE containers and fail the MIME check.
-- pdf: `%PDF-` at offset 0. png/jpg: magic bytes + `getimagesize`.
+- pdf: `%PDF-` at offset 0. A password-protected PDF (`/Encrypt` in the trailer or
+  cross-reference stream dictionary) is **accepted** and marked "(password-protected)"
+  in the PDF's attachments table, so Legal knows to ask for the password.
+  png/jpg: magic bytes + `getimagesize`.
 - csv/txt: no NUL bytes; UTF-8, or Windows-1252 without its unused bytes.
 
 Every file is checked. Any failure rejects the whole submission: `invalid_input`
@@ -120,11 +123,14 @@ file name**; the browser knows each file by its index:
 | `not_allowed` | extension not allowed (the browser normally prevents it) |
 | `upload_failed` | the upload did not arrive intact (PHP upload error) |
 
-The front end maps each code to plain text (`content.json` → `uploads.rejected`,
-unknown codes → `uploads.rejected.unknown`), shows it next to that file in the
-upload list, blocks Review until the file is removed, and the review page's error
-box says "Documents: N file(s) weren't accepted — see the Documents section" with a
-link that returns to the form and focuses the first rejected file. The log keeps
+The front end maps each code to a short plain-language reason (`content.json` →
+`uploads.rejected`, unknown codes → `uploads.rejected.unknown`). The only visible
+error is the file's row in the upload list ("<name> — not accepted", then "Error:
+<reason>"); screen readers get a visually hidden live region instead of a
+field-level message. Review stays blocked until the file is removed. The review page
+marks the file "— not accepted" in its Attached Documents list, and its error box
+says "Documents: N file(s) weren't accepted — see the Documents section", with a
+link that returns to the form and focuses that file's Remove button. The log keeps
 the finer internal reason (`upload_rejected reason=…`). The browser checks count,
 size, total and extension before upload; the rest is server-only. Attachments are
 named `01_`…`05_` + the name reduced to `[A-Za-z0-9._-]` (≤ 100 chars); the

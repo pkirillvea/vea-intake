@@ -201,6 +201,8 @@
 
   /** Errors never rely on colour: icon (CSS) + "Error:" prefix + heavier border + aria-invalid. */
   function showError(name, message) {
+    // Files the server rejected are shown on their own rows only (no field-level error); screen readers get #files-rejected.
+    if (name === 'files' && state.fileErrors.size) message = '';
     const err = errorEl(name);
     if (err) {
       err.textContent = '';
@@ -244,7 +246,7 @@
   }
 
   function focusField(name) {
-    const target = $(`#${name}`);
+    const target = name === 'files' && state.fileErrors.size ? firstRejectedRemove() : $(`#${name}`);
     if (!target) return;
     target.focus();
     target.scrollIntoView({ block: 'center' });
@@ -433,13 +435,14 @@
     $('#files-status').textContent = messages.join(' ');
     $('#files').value = '';   // the input is only a picker; state.files is the list
     renderFiles();
-    if (!rejected.length && state.fileErrors.size) showError('files', filesProblem());   // files the server rejected are still listed
+    syncRejectedLive();
   }
 
   function removeFile(index) {
     const [f] = state.files.splice(index, 1);
     state.fileErrors.delete(f);
-    showError('files', state.fileErrors.size ? filesProblem() : '');
+    showError('files', '');
+    syncRejectedLive();
     refreshSummary();
     $('#files-status').textContent = fmt(U.removed, { name: f.name });
     renderFiles();
@@ -452,19 +455,17 @@
     const list = $('#files-list');
     list.textContent = '';
     state.files.forEach((f, i) => {
-      const btn = el('button', { type: 'button', class: 'link-button', 'aria-label': fmt(U.removeLabel, { name: f.name }), text: U.remove });
+      const btn = el('button', { type: 'button', class: 'link-button', id: `file-remove-${i}`, 'aria-label': fmt(U.removeLabel, { name: f.name }), text: U.remove });
       btn.addEventListener('click', () => removeFile(i));
       const reason = state.fileErrors.get(f);
-      const parts = [
-        el('span', { class: 'files__name', text: f.name }),
-        el('span', { class: 'files__size', text: sizeText(f.size) }),
-        btn,
-      ];
+      const name = el('span', { class: 'files__name' }, el('span', { class: 'files__fname', text: f.name }));
+      const parts = [name, el('span', { class: 'files__size', text: sizeText(f.size) }), btn];
       const attrs = { class: 'files__item' };
       if (reason !== undefined) {
-        // Server-rejected file: message next to it ("Error:" prefix + icon), focusable target of the review summary link.
-        Object.assign(attrs, { class: 'files__item is-invalid', id: `file-item-${i}`, tabindex: '-1' });
-        parts.push(el('p', { class: 'err files__err' }, [el('span', { class: 'err__prefix', text: STR.common.errorPrefix }), ` ${rejectedText(f, reason)}`]));
+        // Server-rejected file: "<name> — not accepted", then "⚠ Error: <short reason>" (the row is the only visible error).
+        Object.assign(attrs, { class: 'files__item is-rejected', id: `file-item-${i}` });
+        name.append(el('span', { class: 'files__flag', text: U.notAccepted }));
+        parts.push(el('p', { class: 'err files__err' }, [el('span', { class: 'err__prefix', text: STR.common.errorPrefix }), ` ${rejectedText(reason)}`]));
       }
       list.append(el('li', attrs, parts));
     });
@@ -474,10 +475,20 @@
     });
   }
 
-  /** Plain-language text for a server reason code (content.json uploads.rejected). */
-  function rejectedText(f, reason) {
+  /** Short plain-language reason for a server code (content.json uploads.rejected); the row already shows the name. */
+  function rejectedText(reason) {
     const tpl = Object.prototype.hasOwnProperty.call(U.rejected, reason) && !reason.startsWith('_') ? U.rejected[reason] : U.rejected.unknown;
-    return fmt(tpl, { name: f.name, ext: extOf(f.name).toUpperCase(), max: LIM.maxFileMb, maxFiles: LIM.maxFiles, maxTotal: LIM.maxTotalMb });
+    return fmt(tpl, { max: LIM.maxFileMb, maxFiles: LIM.maxFiles, maxTotal: LIM.maxTotalMb });
+  }
+
+  /** Screen-reader-only announcement of rejected files (visually hidden live region). */
+  function syncRejectedLive() {
+    $('#files-rejected').textContent = state.fileErrors.size ? filesProblem() : '';
+  }
+
+  function firstRejectedRemove() {
+    const i = state.files.findIndex((f) => state.fileErrors.has(f));
+    return i >= 0 ? $(`#file-remove-${i}`) : null;
   }
 
   /** The server's per-file detail [{index, reason}]: index = position in the files[] that were sent (state.files). */
@@ -488,15 +499,17 @@
       if (f && typeof d.reason === 'string') state.fileErrors.set(f, d.reason);
     });
     renderFiles();
+    renderReviewFiles();
     state.touched.add('files');
-    showError('files', filesProblem() || MSG.fileRejected);
+    showError('files', state.fileErrors.size ? '' : MSG.fileRejected);   // no per-file detail: field-level message
+    syncRejectedLive();
   }
 
   /** Review-page summary item for rejected files; the link returns to the form and focuses the first one. */
   function filesSummaryLink() {
     const count = state.fileErrors.size;
     const first = state.files.findIndex((f) => state.fileErrors.has(f));
-    const target = first >= 0 ? `file-item-${first}` : 'files';
+    const target = first >= 0 ? `file-remove-${first}` : 'files';   // focus lands on that file's Remove button
     let text = `${labelFor('files')}${STR.common.errorSeparator}${MSG.fileRejected}`;
     if (count) text = count === 1 ? U.rejectedSummaryOne : fmt(U.rejectedSummaryMany, { count });
     const a = el('a', { href: `#${target}`, text });
@@ -581,10 +594,20 @@
     row(i, F.narrative.label, val('narrative'), true);
     row(i, F.requestedOutcome.label, val('requestedOutcome'), true);
 
+    renderReviewFiles();
+  }
+
+  /** Attached Documents on the review page; files the server rejected are marked "— not accepted". */
+  function renderReviewFiles() {
     const d = $('#review-documents');
     d.textContent = '';
     if (!state.files.length) d.append(el('li', { text: STR.review.noFiles }));
-    state.files.forEach((f) => d.append(el('li', {}, [el('span', { class: 'files__name', text: f.name }), ' ', el('span', { class: 'files__size', text: sizeText(f.size) })])));
+    state.files.forEach((f) => {
+      const rejected = state.fileErrors.has(f);
+      const parts = [el('span', { class: 'files__name', text: f.name }), ' ', el('span', { class: 'files__size', text: sizeText(f.size) })];
+      if (rejected) parts.push(' ', el('span', { class: 'files__flag', text: U.notAccepted }));
+      d.append(el('li', rejected ? { class: 'is-rejected' } : {}, parts));
+    });
   }
 
   // --------------------------------------------------------------- submit
@@ -767,6 +790,7 @@
     form.reset();
     state.files = [];
     state.fileErrors.clear();
+    syncRejectedLive();
     state.touched.clear();
     state.narrativeOk = '';
     Object.keys(RULES).forEach((n) => showError(n, ''));
@@ -802,6 +826,8 @@
 
   // ----------------------------------------------------------------- init
   function wire() {
+    // showView() places scroll and focus itself; the browser's restore on Back would undo it.
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
     form.addEventListener('submit', (e) => e.preventDefault());
     form.addEventListener('input', (e) => {
       if (e.target.id === 'website' || e.target.id === 'files') return;

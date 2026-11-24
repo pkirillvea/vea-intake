@@ -21,7 +21,8 @@ namespace VeaIntake\Core;
  *     macroEnabled / vbaProject content types) and no ActiveX parts. Embedded OLE
  *     objects are allowed. Encrypted Office files are OLE containers, not ZIPs,
  *     so finfo already rejects them.
- *   - pdf: "%PDF-" at offset 0. png/jpg: magic bytes + getimagesize type.
+ *   - pdf: "%PDF-" at offset 0; password-protected PDFs are accepted and flagged
+ *     (UploadedFile::$passwordProtected). png/jpg: magic bytes + getimagesize type.
  *   - csv/txt: no NUL bytes; valid UTF-8, or Windows-1252 without its 5 unused bytes.
  * - SHA-256 of each file; attachment names 01_..05_ + [A-Za-z0-9._-], <= 100 chars.
  *
@@ -203,7 +204,18 @@ final class UploadValidator
             mime: self::CONTENT_TYPE[$ext],
             sha256: (string) hash_file('sha256', $tmp),
             tmpPath: $tmp,
+            passwordProtected: $ext === 'pdf' && self::isEncryptedPdf($tmp),
         );
+    }
+
+    /**
+     * A password-protected (encrypted) PDF: its trailer, or its cross-reference stream
+     * dictionary, has an /Encrypt entry (an indirect reference or an inline dictionary).
+     * Accepted, but flagged so Legal knows to ask for the password.
+     */
+    public static function isEncryptedPdf(string $path): bool
+    {
+        return (bool) preg_match('~/Encrypt\s*(?:\d+\s+\d+\s+R|<<)~', (string) file_get_contents($path));
     }
 
     /** A password-protected Office file is an OLE container with an "EncryptedPackage" stream. */

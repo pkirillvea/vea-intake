@@ -15,6 +15,7 @@ final class UploadedFile
         public readonly string $mime,           // content type by extension (finfo checked it); never the browser's
         public readonly string $sha256,
         public readonly string $tmpPath,        // under /run/vea-intake; PHP deletes it at request end
+        public readonly bool $passwordProtected = false,   // a PDF with an encryption dictionary (accepted, flagged in the PDF)
     ) {
     }
 }

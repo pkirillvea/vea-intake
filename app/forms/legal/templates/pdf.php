@@ -53,6 +53,7 @@ $a = $v['audit'];
   .audit td { background: #F8F8F8; font-family: "DejaVu Sans Mono", monospace; font-size: 7.5pt; word-wrap: break-word; }
   .audit .file { margin: 0 0 3pt; }
   .muted { color: #555; }
+  .flag { color: #B42318; font-weight: bold; }
   .nobreak { page-break-inside: avoid; }
 </style>
 </head>
@@ -88,7 +89,7 @@ $a = $v['audit'];
 <table class="rows files">
   <tr><th class="num"><?= T::e($L['number']) ?></th><th class="name"><?= T::e($L['name']) ?></th><th class="as"><?= T::e($L['attachedAs']) ?></th><th class="size"><?= T::e($L['size']) ?></th><th class="type"><?= T::e($L['type']) ?></th></tr>
 <?php foreach ($v['files'] as $i => $f) : ?>
-  <tr><td class="num"><?= $i + 1 ?></td><td class="name"><?= T::e($f['name']) ?></td><td class="as"><?= T::e($f['attachedAs']) ?></td><td class="size"><?= T::e(LegalAnswers::size($f['size'], $c)) ?></td><td class="type"><?= T::e(strtoupper($f['extension'])) ?></td></tr>
+  <tr><td class="num"><?= $i + 1 ?></td><td class="name"><?= T::e($f['name']) ?><?php if (!empty($f['passwordProtected'])) : ?> <span class="flag">(<?= T::e($L['passwordProtected']) ?>)</span><?php endif; ?></td><td class="as"><?= T::e($f['attachedAs']) ?></td><td class="size"><?= T::e(LegalAnswers::size($f['size'], $c)) ?></td><td class="type"><?= T::e(strtoupper($f['extension'])) ?></td></tr>
 <?php endforeach; ?>
 </table>
 <?php endif; ?>

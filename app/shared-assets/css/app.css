@@ -196,12 +196,12 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   border-left: 4px solid var(--error);
 }
 
-.error-summary {
+.error-summary {   /* one border style: the error left border (as .notice--error) */
   margin: 0 0 var(--field-gap); padding: 0.75rem 1rem;
-  border: 2px solid var(--error); border-left-width: 6px; border-radius: 0;
+  border: 0; border-left: 6px solid var(--error);
   background: var(--surface); color: var(--text);
 }
-.error-summary:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
+.error-summary:focus { outline: none; }   /* focused by script only (tabindex -1, role=alert); not in the tab order */
 .error-summary p { margin: 0 0 0.375rem; color: var(--error); font-weight: 700; }
 .error-summary p::before { content: "\26A0\FE0E  "; }
 .error-summary ul { margin: 0; padding-left: 1.25rem; }
@@ -227,10 +227,11 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .files__name { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; color: var(--text); font-weight: 600; }
 .files__size { color: var(--muted); font-size: 0.8125rem; }
 /* A file the server rejected: heavier left border + "Error:" message under it (never colour alone) */
-.files__item.is-invalid { border-left: 4px solid var(--error); }
-.files__item:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
-.files__err { display: block; flex: 1 1 100%; margin: 0.125rem 0 0; }   /* inline: icon, "Error:", message flow as one paragraph */
+.files__item.is-rejected { border-left: 4px solid var(--error); }   /* the only visible error treatment */
+.files__flag { margin-left: 0.35em; color: var(--error); font-weight: 400; white-space: nowrap; }   /* "— not accepted" 6.35:1 */
+.files__err { display: block; flex: 1 1 100%; margin: 0; font-weight: 400; }   /* icon, "Error:", reason as one paragraph */
 .files__err::before { margin-right: 0.375rem; }
+.files__item .link-button { min-height: 2.75rem; min-width: 2.75rem; padding: 0 0.5rem; }   /* 44 px tap target */
 
 .link-button {
   min-height: 1.5rem; padding: 0.125rem 0.25rem;
@@ -285,6 +286,8 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .review__row--long dd { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .review__files { margin: 0; padding-left: 1.25rem; }
 .review__files li { margin: 0 0 0.25rem; }
+.review__files li.is-rejected { color: var(--error); list-style-type: "\26A0\FE0E  "; }   /* 6.57:1, icon + text */
+.review__files li.is-rejected .files__name, .review__files li.is-rejected .files__size { color: inherit; }
 
 /* ------------------------------------------------------- confirmation */
 .confirmation__ref { font-size: 1.125rem; font-weight: 700; color: var(--primary); }   /* 6.00:1 */

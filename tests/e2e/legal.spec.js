@@ -446,77 +446,123 @@ test('ping at page load shows "Signed in as <email>"; 503 unavailable and reject
   await expect(page.locator('#firstName')).toHaveValue('Testy');
 });
 
-test('rejected files: per-file messages in the list, review summary links to the file, removal clears them', async ({ page }) => {
-  const problems = watch(page);
+async function rejectAfterSubmit(page, files, detail, fields = '["files"]') {
   await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":null}' }));
   await open(page);
   await fillValid(page);
-  await page.setInputFiles('#files', [
-    { name: 'letter.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') },
-    { name: 'Budget macro.docx', mimeType: 'application/octet-stream', buffer: Buffer.from('PK fake') },
-    { name: 'locked.xlsx', mimeType: 'application/octet-stream', buffer: Buffer.from('fake') },
-  ]);
+  await page.setInputFiles('#files', files);
   await page.click('#review-btn');
-  let body = '';
   await page.route('**/legal/submit.php', (r) => r.fulfill({ status: 400, contentType: 'application/json',
-    body: '{"ok":false,"error":"invalid_input","fields":["files"],"files":[{"index":1,"reason":"macro"},{"index":2,"reason":"encrypted"}]}' }));
+    body: `{"ok":false,"error":"invalid_input","fields":${fields},"files":${JSON.stringify(detail)}}` }));
   await page.click('#submit-btn');
+}
 
-  // review page: one summary line, a link (no vague "Please correct: Documentation")
+const THREE = [
+  { name: 'letter.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') },
+  { name: 'Macro document.docx', mimeType: 'application/octet-stream', buffer: Buffer.from('PK fake') },
+  { name: 'locked.xlsx', mimeType: 'application/octet-stream', buffer: Buffer.from('fake') },
+];
+
+test('rejected files, review page: one-border summary with a link, files marked "not accepted" inline', async ({ page }) => {
+  const problems = watch(page);
+  await rejectAfterSubmit(page, THREE, [{ index: 1, reason: 'macro' }, { index: 2, reason: 'encrypted' }]);
   const summary = page.locator('#submit-error');
   await expect(summary).toHaveText(fmt(C.uploads.rejectedSummaryMany, { count: 2 }));
-  const link = summary.locator('a');
-  await expect(link).toHaveAttribute('href', '#file-item-1');
-  await link.click();
+  await expect(summary.locator('a')).toHaveAttribute('href', '#file-remove-1');
+  const box = await summary.evaluate((n) => { const cs = getComputedStyle(n); return [cs.borderTopWidth, cs.borderRightWidth, cs.borderLeftWidth, cs.borderLeftColor, cs.outlineStyle]; });
+  expect(box).toEqual(['0px', '0px', '6px', rgb('#B42318'), 'none']);   // one border style; no focus outline
 
-  // form: back on the Documents section, focus on the first rejected file, a message next to each
-  await expect(page.locator('#view-form')).toBeVisible();
-  await expect(page.locator('#file-item-1')).toBeFocused();
-  const vars = { max: C.limits.maxFileMb, maxFiles: C.limits.maxFiles, maxTotal: C.limits.maxTotalMb };
-  await expect(page.locator('#file-item-1 .files__err')).toHaveText(`${C.common.errorPrefix} ${fmt(C.uploads.rejected.macro, { ...vars, name: 'Budget macro.docx', ext: 'DOCX' })}`);
-  await expect(page.locator('#file-item-2 .files__err')).toHaveText(`${C.common.errorPrefix} ${fmt(C.uploads.rejected.encrypted, { ...vars, name: 'locked.xlsx', ext: 'XLSX' })}`);
-  await expect(page.locator('#files-list li').first().locator('.files__err')).toHaveCount(0);
-  await expect(page.locator('#files-err')).toContainText(fmt(C.uploads.rejectedFieldMany, { count: 2 }));
-  await expect(page.locator('#files-err')).not.toContainText(C.messages.serverRejected);
-  await expect(page.locator('#firstName')).toHaveValue('Testy');
-
-  // still listed → Review is blocked until they are removed
-  await page.click('#review-btn');
-  await expect(page.locator('#form-summary')).toContainText(fmt(C.uploads.rejectedFieldMany, { count: 2 }));
-  await page.getByRole('button', { name: fmt(C.uploads.removeLabel, { name: 'Budget macro.docx' }) }).click();
-  await expect(page.locator('#files-err')).toContainText(C.uploads.rejectedFieldOne);
-  await page.getByRole('button', { name: fmt(C.uploads.removeLabel, { name: 'locked.xlsx' }) }).click();
-  await expect(page.locator('#files-err')).toBeHidden();
-  await expect(page.locator('.files__err')).toHaveCount(0);
-
-  // a single rejection, an unknown code falls back to a generic message
-  await page.click('#review-btn');
-  await expect(page.locator('#view-review')).toBeVisible();
-  await page.unroute('**/legal/submit.php');
-  await page.route('**/legal/submit.php', (r) => { body = r.request().postData() || ''; r.fulfill({ status: 400, contentType: 'application/json',
-    body: '{"ok":false,"error":"invalid_input","fields":["files"],"files":[{"index":0,"reason":"mime_mismatch"}]}' }); });
-  await page.click('#submit-btn');
-  await expect(summary).toHaveText(C.uploads.rejectedSummaryOne);
-  expect(body).toContain('filename="letter.pdf"');
-  await summary.locator('a').click();
-  await expect(page.locator('#file-item-0')).toBeFocused();
-  await expect(page.locator('#file-item-0 .files__err')).toContainText(fmt(C.uploads.rejected.mime_mismatch, { ...vars, name: 'letter.pdf', ext: 'PDF' }));
+  const items = page.locator('#review-documents li');
+  await expect(items).toHaveCount(3);
+  await expect(items.nth(0)).not.toHaveClass(/is-rejected/);
+  await expect(items.nth(0)).not.toContainText(C.uploads.notAccepted);
+  for (const n of [1, 2]) {
+    await expect(items.nth(n)).toHaveClass(/is-rejected/);
+    await expect(items.nth(n)).toContainText(C.uploads.notAccepted);
+  }
+  await expect(items.nth(1)).toHaveText(`Macro document.docx 1 KB ${C.uploads.notAccepted}`);
+  const mark = await items.nth(1).evaluate((n) => [getComputedStyle(n).color, getComputedStyle(n).listStyleType]);
+  expect(mark[0]).toBe(rgb('#B42318'));
+  expect(mark[1]).toContain('⚠');
   expect(problems).toEqual([]);
 });
 
-test('rejected files together with field errors, and an unknown reason code', async ({ page }) => {
-  await page.route('**/legal/ping.php', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"email":"staff@example.org","name":null}' }));
-  await open(page);
-  await fillValid(page);
-  await page.setInputFiles('#files', [{ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('fake') }]);
+test('rejected files, form page: row is the only visible error, focus on Remove, screen-reader text, removal clears', async ({ page }) => {
+  const problems = watch(page);
+  await rejectAfterSubmit(page, THREE, [{ index: 1, reason: 'macro' }, { index: 2, reason: 'encrypted' }]);
+  await page.locator('#submit-error a').click();
+
+  await expect(page.locator('#view-form')).toBeVisible();
+  await expect(page.locator('#file-remove-1')).toBeFocused();                 // the Remove button, not the whole row
+  await expect(page.locator('#file-item-1')).toBeInViewport();
+
+  // rows: "<name> — not accepted" + "⚠ Error: <short reason>" (no file name repeated)
+  const row = page.locator('#file-item-1');
+  await expect(row.locator('.files__fname')).toHaveText('Macro document.docx');
+  await expect(row.locator('.files__flag')).toHaveText(C.uploads.notAccepted);
+  await expect(row.locator('.files__err')).toHaveText(`${C.common.errorPrefix} ${C.uploads.rejected.macro}`);
+  await expect(page.locator('#file-item-2 .files__err')).toHaveText(`${C.common.errorPrefix} ${C.uploads.rejected.encrypted}`);
+  await expect(page.locator('#files-list li').first()).not.toHaveClass(/is-rejected/);
+  expect(await row.evaluate((n) => [getComputedStyle(n).borderLeftWidth, getComputedStyle(n).borderLeftColor])).toEqual(['4px', rgb('#B42318')]);
+  expect(await row.evaluate((n) => getComputedStyle(n).outlineStyle)).toBe('none');
+
+  // no field-level error: no summary line, no red field border, no red file-input border
+  await expect(page.locator('#files-err')).toBeHidden();
+  await expect(page.locator('#f-files')).not.toHaveClass(/is-invalid/);
+  await expect(page.locator('#files')).not.toHaveAttribute('aria-invalid', 'true');
+  expect(await page.locator('#f-files').evaluate((n) => getComputedStyle(n).borderLeftWidth)).toBe('0px');
+
+  // …but screen readers get it: visually hidden live region
+  const live = page.locator('#files-rejected');
+  await expect(live).toHaveText(fmt(C.uploads.rejectedFieldMany, { count: 2 }));
+  await expect(live).toHaveAttribute('role', 'status');
+  expect((await live.boundingBox()).width).toBeLessThanOrEqual(1);
+
+  // Review is still blocked; the form summary link also lands on the first Remove button
   await page.click('#review-btn');
-  await page.route('**/legal/submit.php', (r) => r.fulfill({ status: 400, contentType: 'application/json',
-    body: '{"ok":false,"error":"invalid_input","fields":["zip","files"],"files":[{"index":0,"reason":"something_new"}]}' }));
-  await page.click('#submit-btn');
+  await expect(page.locator('#form-summary')).toContainText(fmt(C.uploads.rejectedFieldMany, { count: 2 }));
+  await page.locator('#form-summary a').first().click();
+  await expect(page.locator('#file-remove-1')).toBeFocused();
+
+  await page.locator('#file-remove-1').click();
+  await expect(live).toHaveText(C.uploads.rejectedFieldOne);
+  await expect(page.locator('#file-item-1 .files__err')).toHaveText(`${C.common.errorPrefix} ${C.uploads.rejected.encrypted}`);   // re-indexed
+  await page.locator('#file-remove-1').click();
+  await expect(live).toHaveText('');
+  await expect(page.locator('.files__err')).toHaveCount(0);
+  await page.click('#review-btn');
+  await expect(page.locator('#view-review')).toBeVisible();
+  await expect(page.locator('#review-documents li.is-rejected')).toHaveCount(0);
+  expect(problems).toEqual([]);
+});
+
+test('rejected file row layout: Remove is a 44 px target, wraps under the name on phones, no horizontal scroll', async ({ page }) => {
+  await rejectAfterSubmit(page, [{ name: 'A rather long scanned document name from the district office.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') }],
+    [{ index: 0, reason: 'mime_mismatch' }]);
+  await expect(page.locator('#submit-error')).toHaveText(C.uploads.rejectedSummaryOne);
+  await page.locator('#submit-error a').click();
+  await expect(page.locator('#file-remove-0')).toBeFocused();
+  const g = await page.locator('#file-item-0').evaluate((li) => {
+    const r = (sel) => li.querySelector(sel).getBoundingClientRect();
+    const name = r('.files__name'); const btn = r('.link-button'); const err = r('.files__err'); const flag = r('.files__flag'); const row = li.getBoundingClientRect();
+    return { btnH: btn.height, btnW: btn.width, btnBelowName: btn.top >= name.bottom - 1, errBelow: err.top >= Math.max(name.bottom, btn.bottom) - 1,
+      flagInName: flag.top >= name.top - 1 && flag.bottom <= name.bottom + 1, inRow: btn.right <= row.right + 0.5 && err.right <= row.right + 0.5,
+      scroll: document.documentElement.scrollWidth <= window.innerWidth };
+  });
+  expect(g.btnH).toBeGreaterThanOrEqual(44);
+  expect(g.btnW).toBeGreaterThanOrEqual(44);
+  expect(g).toMatchObject({ errBelow: true, flagInName: true, inRow: true, scroll: true });
+  if (page.viewportSize().width < 576) expect(g.btnBelowName).toBe(true);    // phone: Remove wraps under the name
+  else expect(g.btnBelowName).toBe(false);                                     // desktop: on line 1, right side
+  await expect(page.locator('#file-item-0 .files__err')).toHaveText(`${C.common.errorPrefix} ${C.uploads.rejected.mime_mismatch}`);
+});
+
+test('rejected files together with field errors, and an unknown reason code', async ({ page }) => {
+  await rejectAfterSubmit(page, [{ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('fake') }], [{ index: 0, reason: 'something_new' }], '["zip","files"]');
   const summary = page.locator('#submit-error');
   await expect(summary).toContainText(fmt(C.messages.submitInvalid, { fields: `${C.fields.address.label} (${C.fields.zip.label})` }));
   await expect(summary.locator('a')).toHaveText(C.uploads.rejectedSummaryOne);
   await summary.locator('a').click();
-  await expect(page.locator('#file-item-0 .files__err')).toContainText(fmt(C.uploads.rejected.unknown, { name: 'notes.txt' }));
+  await expect(page.locator('#file-item-0 .files__err')).toHaveText(`${C.common.errorPrefix} ${C.uploads.rejected.unknown}`);
   await expect(page.locator('#zip-err')).toContainText(C.messages.serverRejected);
 });

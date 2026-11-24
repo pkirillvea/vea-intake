@@ -123,7 +123,7 @@ final class LegalSubmitHandlerTest extends TestCase
         self::assertTrue(SubmissionId::isValid($body['id']));
 
         [$staff, $confirm] = $http->jsonBodies(self::SEND);
-        self::assertSame("Legal Assistance Request - [#{$body['id']}] - jsmith1", $staff['message']['subject']);
+        self::assertSame("Legal Assistance Request Form - [#{$body['id']}] - jsmith1", $staff['message']['subject']);
         self::assertSame('legal@example.org', $staff['message']['toRecipients'][0]['emailAddress']['address']);
         self::assertFalse($staff['saveToSentItems']);
         self::assertSame(["Legal-Request_{$body['id']}_McTestface_Testy.pdf", '01_Member_Letter.pdf'], array_column($staff['message']['attachments'], 'name'));
@@ -152,7 +152,7 @@ final class LegalSubmitHandlerTest extends TestCase
         [$status, $body, $http] = $this->submit(Fx::payload(), [], self::graphOk(), ['TEST_MODE' => '', 'TEST_MAIL_TO' => 'paul.test@example.org'], [AccessAuth::HEADER => $tok]);
         self::assertSame(200, $status);
         [$staff, $confirm] = $http->jsonBodies(self::SEND);
-        self::assertSame("[TEST] Legal Assistance Request - [#{$body['id']}] - choward", $staff['message']['subject'], 'blank TEST_MODE = test mode; override map');
+        self::assertSame("[TEST] Legal Assistance Request Form - [#{$body['id']}] - choward", $staff['message']['subject'], 'blank TEST_MODE = test mode; override map');
         self::assertSame('paul.test@example.org', $staff['message']['toRecipients'][0]['emailAddress']['address']);
         self::assertStringContainsString('would have gone to legal@example.org', $staff['message']['body']['content']);
         self::assertSame('[TEST] Legal Assistance Request received - [#' . $body['id'] . ']', $confirm['message']['subject']);
@@ -180,6 +180,27 @@ final class LegalSubmitHandlerTest extends TestCase
         self::assertSame(0, $http->remaining(), 'every expected Graph call made');
         self::assertMatchesRegularExpression('/^vea-intake event=staff_sent id=\d{8}-\d{4}-\w{4} status=202 stage=large$/', $this->log[0]);
         self::assertNotContains('sent_copy_cleanup_failed', $this->events());
+    }
+
+    /**
+     * A Power Automate flow on the VEALegal mailbox creates a Planner task when the subject
+     * contains exactly "Legal Assistance Request Form". It must survive in both modes; the
+     * submitter confirmation must not trigger it.
+     */
+    public function testStaffSubjectContainsThePowerAutomatePhraseInBothModes(): void
+    {
+        $phrase = 'Legal Assistance Request Form';
+        self::assertSame($phrase, \VeaIntake\Core\Template::content('legal')['email']['staff']['subjectPhrase'], 'content.json phrase changed: the flow would stop matching');
+        foreach ([['TEST_MODE' => 'false'], ['TEST_MODE' => 'true', 'TEST_MAIL_TO' => 'paul.test@example.org'], ['TEST_MODE' => '', 'TEST_MAIL_TO' => 'paul.test@example.org']] as $cfg) {
+            [$status, $body, $http] = $this->submit(Fx::payload(), [], self::graphOk(), $cfg);
+            self::assertSame(200, $status);
+            [$staff, $confirm] = $http->jsonBodies(self::SEND);
+            $prefix = $cfg['TEST_MODE'] === 'false' ? '' : '[TEST] ';
+            self::assertStringContainsString($phrase, $staff['message']['subject'], json_encode($cfg));
+            self::assertSame("{$prefix}{$phrase} - [#{$body['id']}] - jsmith1", $staff['message']['subject'], 'exact staff subject');
+            self::assertSame("{$prefix}Legal Assistance Request received - [#{$body['id']}]", $confirm['message']['subject'], 'confirmation unchanged');
+            self::assertStringNotContainsString($phrase, $confirm['message']['subject'], 'the confirmation must not trigger the flow');
+        }
     }
 
     public function testHoneypotFakesSuccessAndSendsNothing(): void

@@ -47,6 +47,19 @@ final class UploadFixtures
         return $this->write($name, "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
     }
 
+    /** A real password-protected PDF (dompdf's RC4 encryption, user password "fake-user"). */
+    public function encryptedPdf(string $name = 'locked.pdf'): string
+    {
+        $o = new \Dompdf\Options();
+        $o->setTempDir(sys_get_temp_dir());
+        $d = new \Dompdf\Dompdf($o);
+        $d->loadHtml('<p>FAKE protected document</p>');
+        $d->render();
+        $d->getCanvas()->get_cpdf()->setEncryption('fake-user', 'fake-owner');
+
+        return $this->write($name, (string) $d->output());
+    }
+
     public function png(string $name = 'photo.png'): string
     {
         $i = imagecreatetruecolor(8, 8);
