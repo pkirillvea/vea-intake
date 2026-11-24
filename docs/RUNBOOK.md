@@ -30,8 +30,8 @@ swap. Exit 0 = all PASS.
 - Never `umount /run/vea-intake` by hand; reboot or
   `sudo systemctl restart 'run-vea\x2dintake.mount'` instead. The fstab line has
   `nofail`; PHP-FPM only `Wants=`/`After=` the mount, so a missing tmpfs never
-  stops PHP-FPM (pdjoin shares it). submit.php refuses with 503 when the tmpfs
-  is not mounted (TmpfsGuard, Prompt 4).
+  stops PHP-FPM (pdjoin shares it). submit.php and ping.php refuse with 503 when
+  the tmpfs is not mounted (TmpfsGuard).
 - In the repo: never chmod/chown/setfacl; Composer only under `umask 027`
   (see README.md).
 - `/var/www/vea-join` is live: read it, never modify it.
@@ -72,13 +72,40 @@ swap. Exit 0 = all PASS.
 
 ## Pending root changes
 
-- **`sudo bash ~/scripts/phase-csp.sh`** (written in Prompt 3): drop `data:` and `blob:` from `img-src` in
-  `/etc/nginx/snippets/vea-intake-headers.conf` (they were only for the signature
-  pad, which Legal dropped). Exact-line edit with pinned hashes, `nginx -t` with zero
-  warnings, reload.
-- Optional: delete the ignored `FORM_VERSION_LEGAL=` line from
-  `/etc/vea-intake/app.env` with `sudoedit` (the form version lives in
-  `app/forms/legal/content.json`).
+- **`sudo bash ~/scripts/phase-p4.sh`** (written in Prompt 4): nginx
+  `fastcgi_read_timeout 90s` on `= /legal/submit.php`; vea-intake pool
+  `request_terminate_timeout = 95s`, `max_file_uploads` 5 → 6, `open_basedir` +
+  `:/proc/self/mountinfo` (without it TmpfsGuard cannot read mountinfo and every
+  request is 503). Both files pinned before/after by SHA-256, `nginx -t` with zero
+  warnings and `php-fpm8.3 -t` before reloading; reloads only. Then `verify-do2.sh`.
+- Optional: delete the ignored lines from `/etc/vea-intake/app.env` with `sudoedit`:
+  `FORM_VERSION_LEGAL=` (form version is in `content.json`) and `UPLOAD_MAX_FILES`,
+  `UPLOAD_MAX_FILE_MB`, `UPLOAD_MAX_TOTAL_MB`, `NARRATIVE_MAX_WORDS` (limits are in
+  `content.json` → `limits`, read by browser and server). `Config` ignores them.
+- Done: `phase-csp.sh` (CSP `img-src 'self'`, 2026-11-23).
+
+## Submissions (Prompt 4)
+
+- Endpoints: `public/legal/ping.php` → `app/forms/legal/ping.php` (`LegalPing`),
+  `public/legal/submit.php` → `app/forms/legal/handler.php` (`LegalSubmitHandler`).
+- **Log** (`/var/log/php-fpm-vea-intake.log`): one line per event, `vea-intake
+  event=<name>` plus only `form`, `id`, `status`, `stage`, `reason`, `class`,
+  `fields` (payload key names). Never values, names, emails or file names.
+  `sudo grep 'vea-intake event=' /var/log/php-fpm-vea-intake.log | tail -50`
+- **`sent_copy_cleanup_failed id=<ID>`**: the large-path copy is still in no.reply's
+  Sent Items. Find the message with `[#<ID>]` in the subject in OWA (as no.reply,
+  or via an admin) and delete it permanently (Shift+Del, then purge from Recoverable
+  Items if needed). **`draft_cleanup_failed id=<ID>`**: same, in Drafts.
+- **`auth_failed reason=…`**: a token was rejected (401). `jwks_unavailable`:
+  Cloudflare's key endpoint could not be reached and the cache is stale → 503 until
+  it can. Cache: `/var/cache/vea-intake/access-jwks.json` (public keys only, safe
+  to delete; it is refetched).
+- **`tmpfs_not_ready`**: `/run/vea-intake` is not a mounted tmpfs (or unreadable
+  mountinfo) → 503. `findmnt /run/vea-intake`; `sudo systemctl restart 'run-vea\x2dintake.mount'`.
+- **TEST_MODE**: blank or `true` = test (all mail to `TEST_MAIL_TO`, `[TEST] `
+  subject). Go live: set `TEST_MODE=false` with `sudoedit /etc/vea-intake/app.env`
+  (read per request; no reload needed).
+- Sample PDF for layout review: `php bin/render-sample-pdf.php` → `scratch/` (fake data).
 
 ## Repo operations
 

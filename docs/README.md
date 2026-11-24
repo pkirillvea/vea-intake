@@ -14,13 +14,15 @@ vea-join is live: read it, never modify it.
 ```
 public/legal/            nginx root for the form (www-data can read public/ only)
   index.html             GENERATED (bin/build-site.php) — do not edit
+  ping.php, submit.php   3-line entries → app/forms/legal/ping.php, handler.php
   assets/                GENERATED (bin/build-assets.php) — do not edit
   data/form-data.json    GENERATED (bin/build-data.php)
 app/
   core/src/              shared PHP, namespace VeaIntake\Core\
   forms/legal/           the Legal form, namespace VeaIntake\Forms\Legal\
-    content.json         texts, issue types, _meta.formVersion (the form version)
-    templates/           index.html (page template), later pdf.php and the emails
+    content.json         texts, issue types, limits (browser AND server), _meta.formVersion
+    templates/           index.html (page), pdf.php, email_staff.php, email_confirm.php
+    LegalSubmitHandler   submit flow (PLAN §2); LegalPing, LegalValidator, LegalAnswers (PDF rows)
   shared-assets/         CSS, logo, icons: the single source for every form
   data/source/           locals.json, worksites.json (from vea-join, see below)
   data/form-data.json    GENERATED (server copy, read by PHP)
@@ -111,6 +113,7 @@ data: last worksite of every local, and last local. The current data is vea-join
 | `bin/build-site.php --form=legal` | `public/legal/index.html` |
 | `bin/warm-fonts.php` | dompdf font cache in `app/storage/fonts/` (the pool cannot write `app/`) |
 | `bin/check-perms.php` | read-only permission check |
+| `bin/render-sample-pdf.php [--out=DIR]` | sample Legal PDF from FAKE data → `scratch/` (gitignored), for layout review |
 | `bin/make-grain.php` | regenerate `app/shared-assets/img/grain.png` (page texture; reproducible, committed) |
 | `bin/fix-vendor-perms.php [vendor or tests/e2e/node_modules]` | re-create `vendor/` (runs after composer) or the e2e `node_modules/` with the right group |
 
