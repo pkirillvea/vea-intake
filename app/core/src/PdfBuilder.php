@@ -11,9 +11,9 @@ use RuntimeException;
 /**
  * Builds a form's PDF in memory (docs/PLAN.md sections 3, 11).
  * Copied from vea-join's PdfBuilder and generalized: the form (templates and
- * texts), the logo and the temp base are constructor arguments; the footer of
- * every page carries the form's banner (content.json pdf.banner, e.g. the
- * privilege marking) and "Page X of Y" (pdf.page).
+ * texts), the logo and the temp base are constructor arguments. The header AND
+ * the footer of every page carry the form's banner (content.json pdf.banner, the
+ * privilege marking); the footer also has the submission ID and "Page X of Y".
  *
  * dompdf decodes each data: image into a temporary file in tempDir and deletes
  * it at the end of render(). Each call gets its own directory under
@@ -24,6 +24,7 @@ final class PdfBuilder
     public const APP_DIR = __DIR__ . '/../..';
     public const FONT_DIR = self::APP_DIR . '/storage/fonts';
     public const LOGO = self::APP_DIR . '/shared-assets/img/vea-logo-white.png';
+    public const BANNER_RGB = [0.008, 0.243, 0.369];   // --banner-fg #023E5E
 
     public function __construct(
         private readonly string $form,
@@ -35,9 +36,10 @@ final class PdfBuilder
     /**
      * @param array<string, mixed> $data  validated data from the form's validator
      * @param array<string, mixed> $audit the audit block (Audit::build)
+     * @param array<string, mixed> $extra more template variables (e.g. answers, files)
      * @return string PDF bytes
      */
-    public function render(array $data, string $id, array $audit): string
+    public function render(array $data, string $id, array $audit, array $extra = []): string
     {
         $c = Template::content($this->form);
         $html = Template::render($this->form, 'pdf', [
@@ -46,7 +48,7 @@ final class PdfBuilder
             'audit' => $audit,
             'logo' => 'data:image/png;base64,' . base64_encode((string) file_get_contents($this->logo)),
             'c' => $c,
-        ]);
+        ] + $extra);
 
         $tmp = $this->tempBase . '/pdf-' . bin2hex(random_bytes(8));
         if (!@mkdir($tmp, 0700)) {
@@ -59,10 +61,21 @@ final class PdfBuilder
             $dompdf->render();
 
             $canvas = $dompdf->getCanvas();
-            $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
-            $label = Template::fmt((string) ($c['pdf']['page'] ?? 'Page {page} of {pages}'), ['page' => '{PAGE_NUM}', 'pages' => '{PAGE_COUNT}']);
+            $metrics = $dompdf->getFontMetrics();
+            $bold = $metrics->getFont('DejaVu Sans', 'bold');
+            $font = $metrics->getFont('DejaVu Sans');
+            [$w, $h] = [$canvas->get_width(), $canvas->get_height()];
             $banner = (string) ($c['pdf']['banner'] ?? '');
-            $canvas->page_text(40, $canvas->get_height() - 32, trim("$banner   $id   $label"), $font, 7.5, [0.35, 0.35, 0.35]);
+            $page = (string) ($c['pdf']['page'] ?? 'Page {page} of {pages}');
+            $label = Template::fmt($page, ['page' => '{PAGE_NUM}', 'pages' => '{PAGE_COUNT}']);
+            $sample = Template::fmt($page, ['page' => '88', 'pages' => '88']);
+            if ($banner !== '') {
+                $bw = $metrics->getTextWidth($banner, $bold, 7.5);
+                $canvas->page_text(($w - $bw) / 2, 20, $banner, $bold, 7.5, self::BANNER_RGB);       // header
+                $canvas->page_text(($w - $bw) / 2, $h - 40, $banner, $bold, 7.5, self::BANNER_RGB);  // footer
+            }
+            $canvas->page_text(40, $h - 28, $id, $font, 7.5, [0.33, 0.33, 0.33]);
+            $canvas->page_text($w - 40 - $metrics->getTextWidth($sample, $font, 7.5), $h - 28, $label, $font, 7.5, [0.33, 0.33, 0.33]);
 
             $pdf = (string) $dompdf->output();
         } finally {

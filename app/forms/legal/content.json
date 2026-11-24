@@ -195,6 +195,28 @@
         "title": "VEA Legal Assistance Request",
         "banner": "PRIVILEGED & CONFIDENTIAL – PREPARED AT THE DIRECTION OF COUNSEL",
         "page": "Page {page} of {pages}",
-        "filenamePrefix": "Legal-Request"
+        "filenamePrefix": "Legal-Request",
+        "submissionId": "Submission ID",
+        "attachments": {
+            "none": "No files attached.",
+            "number": "#",
+            "name": "File name (as uploaded)",
+            "attachedAs": "Attached as",
+            "size": "Size",
+            "type": "Type"
+        },
+        "audit": {
+            "title": "Audit",
+            "submissionId": "Submission ID",
+            "submitted": "Submitted",
+            "submittedBy": "Submitted by",
+            "ip": "Client IP",
+            "location": "Approx. location",
+            "userAgent": "User agent",
+            "formVersion": "Form version",
+            "dataSha256": "Data SHA-256",
+            "files": "Files (name, size, type, SHA-256)",
+            "notAvailable": "not available"
+        }
     }
 }
